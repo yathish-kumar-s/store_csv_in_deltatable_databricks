@@ -56,10 +56,14 @@ def upload_file():
             df.to_csv(csv_buffer, index=False)
             csv_buffer.seek(0)
 
-            w.volumes.create(
-                catalog_name=volume_catalog, schema_name=volume_schema,
-                name=volume_name, volume_type=catalog.VolumeType.MANAGED
-            )
+            try:
+                loaded_volume = w.volumes.read(name=f"{volume_catalog}.{volume_schema}.{volume_name}")
+            except Exception as e:
+                print('Creating the volume')
+                w.volumes.create(
+                    catalog_name=volume_catalog, schema_name=volume_schema,
+                    name=volume_name, volume_type=catalog.VolumeType.MANAGED
+                )
 
             file_path_in_volume = f"/Volumes/{volume_catalog}/{volume_schema}/{volume_name}/{file.filename}"
             w.files.upload(file_path=file_path_in_volume, contents=csv_buffer, overwrite=True)
