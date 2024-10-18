@@ -21,12 +21,7 @@ w = WorkspaceClient(
 
 volume_catalog = 'analysis'
 volume_schema = 'bronze'
-volume_name = 'temp_csv_holder'
-
-
-table_catalog = 'analysis'
-table_schema = 'bronze'
-table_name = 'tabledata'
+volume_name = 'files_folder'
 
 notebook = '/Workspace/Repos/PA/Databricks/analysis/create_table_form_csv_in_volumes'
 
@@ -83,15 +78,7 @@ def upload_file():
 
             )
 
-            notebook_params = dict(
-                file_name=file.filename,
-                volume_catalog=volume_catalog,
-                volume_schema=volume_schema,
-                volume_name=volume_name,
-                table_catalog=table_catalog,
-                table_schema=table_schema,
-                table_name=table_name
-                                   )
+            notebook_params = dict(file_name=file.filename)
 
             run_by_id = w.jobs.run_now(job_id=jobid.job_id, notebook_params=notebook_params).result()
 
@@ -103,11 +90,11 @@ def upload_file():
 
         except Exception as e:
             flash(f'An error occurred: {str(e)}')
-            return redirect(request.url)
+            return redirect(url_for('upload_form'))
 
     else:
         flash('Invalid file format. Please upload a CSV.')
-        return redirect(request.url)
+        return redirect(url_for('upload_form'))
 
 
 if __name__ == '__main__':
