@@ -1,0 +1,140 @@
+/* Reset and Box Model */
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+/* Body Styling */
+body {
+    font-family: Arial, sans-serif;
+    background-color: #f5f5f5;
+}
+
+/* Header Styling */
+header {
+    background-color: #0a1a40;
+    color: white;
+    padding: 10px 20px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.header-title {
+    font-size: 24px;
+    font-weight: bold;
+}
+
+.header-logo img {
+    max-height: 33px;
+}
+
+/* Main Content Styling */
+main {
+    padding: 20px;
+    margin: 20px auto;
+    max-width: 600px;
+    background-color: white;
+    border-radius: 8px;
+    box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+    text-align: center;
+}
+
+/* Form Styling */
+form {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+input[type="file"] {
+    padding: 10px;
+    border: 1px solid #ccc;
+    border-radius: 5px;
+}
+
+button {
+    padding: 10px;
+    background-color: #007bff;
+    color: white;
+    border: none;
+    border-radius: 5px;
+    cursor: pointer;
+}
+
+button:hover {
+    background-color: #0056b3;
+}
+
+button:disabled {
+    background-color: #7a7a7a;
+    cursor: not-allowed;
+}
+
+/* Link Styling */
+a {
+    display: inline-block;
+    margin-top: 20px;
+    padding: 10px 15px;
+    background-color: #007bff;
+    color: white;
+    text-decoration: none;
+    border-radius: 5px;
+    font-size: 18px;
+}
+
+a:hover {
+    background-color: #0056b3;
+}
+
+/* Loading Spinner */
+.loading-spinner {
+    display: none;
+    position: fixed;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    z-index: 1000;
+}
+
+
+/* Upload Container Styling */
+.upload-container {
+    display: flex;
+    flex-direction: column;  /* Arrange sections in rows */
+    gap: 15px;  /* Space between rows */
+    margin-top: 30px;
+}
+
+/* Individual Upload Section Styling */
+.upload-section {
+    background-color: #e9ecef;
+    border-radius: 8px;
+    padding: 15px;
+    box-shadow: 0 0 5px rgba(0, 0, 0, 0.1);
+    text-align: center;
+}
+
+.upload-section a {
+    display: inline-block;
+    margin-top: 10px;
+    padding: 10px 15px;
+    background-color: #007bff;
+    color: white;
+    text-decoration: none;
+    border-radius: 5px;
+    font-size: 16px;
+}
+
+.upload-section a:hover {
+    background-color: #0056b3;
+}
+
+.file-details {
+    margin-top: 20px;
+}
+
+.file-headings{
+    margin-bottom: 30px;
+}

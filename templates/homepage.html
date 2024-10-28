@@ -1,0 +1,22 @@
+{% extends "base.html" %}
+
+{% block title %}Home - CSV Uploader{% endblock %}
+
+{% block content %}
+    <h1>Welcome to the CSV Uploader</h1>
+    <p class="file-details">Click the buttons below to upload CSV files.</p>
+
+    <div class="upload-container">
+        <div class="upload-section">
+            <a href="{{ url_for('upload_form') }}">Upload good better best</a>
+        </div>
+
+        <div class="upload-section">
+            <a href="{{ url_for('upload_form_part_term') }}">Upload Parts Terms</a>
+        </div>
+
+        <div class="upload-section">
+            <a href="{{ url_for('upload_form_cust_part_attr') }}">Upload Custom Parts</a>
+        </div>
+    </div>
+{% endblock %}

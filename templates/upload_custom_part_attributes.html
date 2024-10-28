@@ -1,11 +1,11 @@
 {% extends "base.html" %}
 
-{% block title %}Upload CSV - GoodBetterBest{% endblock %}
+{% block title %}Upload CSV - Custom Part Attributes{% endblock %}
 
 {% block content %}
     <div class="file-headings">
-        <h1>Upload GoodBetterBest CSV File.</h1>
-        <p class="file-details">Upload file details: lc, part, quality, quality_id.</p>
+        <h1>Upload Custom Part Attributes CSV File</h1>
+        <p class="file-details">Upload file details: lc, part, partattributecode, partattributedescription.</p>
     </div>
 
 
@@ -23,7 +23,7 @@
         <img src="/static/images/spinner.gif" alt="Loading...">
     </div>
 
-    <form id="uploadForm" action="{{ url_for('upload_file') }}" method="POST" enctype="multipart/form-data">
+    <form id="uploadForm" action="{{ url_for('upload_custom_part_attributes') }}" method="POST" enctype="multipart/form-data">
         <input type="file" name="file" accept=".csv" required>
         <button type="submit" id="uploadButton">Upload</button>
     </form>
