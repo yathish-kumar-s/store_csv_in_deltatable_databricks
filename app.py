@@ -23,6 +23,8 @@ logging.basicConfig(
     format='%(asctime)s %(levelname)s: %(message)s [in %(pathname)s:%(lineno)d]'
 )
 
+logger = logging.getLogger(__name__)
+
 # application_id = dbutils.secrets.get(
 #     scope=f"padss{environment}001", key=f"svcDatabricksPrd-clientid"
 # )
@@ -74,6 +76,8 @@ def upload_form_cust_part_attr():
 def upload_file():
     volume_folder = 'apps/goodbetterbest'
     notebook_path = '/Workspace/Repos/PA/Databricks/Databricks-Apps/upload-file-notebooks/good_better_best'
+    required_columns = ['lc', 'part', 'quality_id', 'quality']
+    nullable_columns = ['quality_id']
     if 'file' not in request.files:
         flash('No file part')
         return redirect(request.url)
@@ -87,7 +91,7 @@ def upload_file():
     if file and file.filename.endswith('.csv'):
         try:
 
-            csv_buffer = read_csv_file(file)
+            csv_buffer = read_csv_file(file, required_columns, nullable_columns)
 
             # try:
             #     loaded_volume = w.volumes.read(name=f"{volume_catalog}.{volume_schema}.{volume_name}/{volume_folder}")
@@ -117,6 +121,11 @@ def upload_file():
 
             run_by_id = w.jobs.run_now(job_id=jobid.job_id, notebook_params=notebook_params).result()
 
+            run_results = w.jobs.get_run_output(run_id=run_by_id.tasks[0].run_id).notebook_output.result
+
+            if run_results and 'Error' in run_results:
+                raise Exception(run_results)
+
             flash('CSV uploaded and data inserted successfully!')
 
             # cleanup
@@ -126,7 +135,7 @@ def upload_file():
         except Exception as e:
             flash(f'An error occurred: Please try again')
             print(str(e))
-            app.logger.info(f'An error occurred: {str(e)}')
+            logger.exception(f'An error occurred: {str(e)}')
             return redirect(url_for('upload_form'))
 
     else:
@@ -138,6 +147,9 @@ def upload_file():
 def upload_part_term():
     volume_folder = 'apps/part_term'
     notebook_path = '/Workspace/Repos/PA/Databricks/Databricks-Apps/upload-file-notebooks/part_term'
+    required_columns = ['lc', 'part', 'parttermid']
+    nullable_columns = []
+
     if 'file' not in request.files:
         flash('No file part')
         return redirect(request.url)
@@ -151,7 +163,7 @@ def upload_part_term():
     if file and file.filename.endswith('.csv'):
         try:
 
-            csv_buffer = read_csv_file(file)
+            csv_buffer = read_csv_file(file, required_columns, nullable_columns)
 
             try:
                 loaded_volume = w.volumes.read(name=f"{volume_catalog}.{volume_schema}.{volume_name}/{volume_folder}")
@@ -180,6 +192,11 @@ def upload_part_term():
 
             run_by_id = w.jobs.run_now(job_id=jobid.job_id, notebook_params=notebook_params).result()
 
+            run_results = w.jobs.get_run_output(run_id=run_by_id.tasks[0].run_id).notebook_output.result
+
+            if run_results and 'Error' in run_results:
+                raise Exception(run_results)
+
             flash('CSV uploaded and data inserted successfully!')
 
             # cleanup
@@ -188,7 +205,7 @@ def upload_part_term():
 
         except Exception as e:
             flash(f'An error occurred: Please try again')
-            app.logger.info(f'An error occurred: {str(e)}')
+            logger.exception(f'An error occurred: {str(e)}')
             return redirect(url_for('upload_form_part_term'))
 
     else:
@@ -199,6 +216,9 @@ def upload_part_term():
 @app.route('/upload_custom_part_attributes', methods=['POST'])
 def upload_custom_part_attributes():
     volume_folder = 'apps/custompartattributes'
+    notebook_path = '/Workspace/Repos/PA/Databricks/Databricks-Apps/upload-file-notebooks/custompartattributes'
+    required_columns = ['lc', 'part',  'partattributecode', 'partattributedescription']
+    nullable_columns = ['partattributecode']
     if 'file' not in request.files:
         flash('No file part')
         return redirect(request.url)
@@ -211,7 +231,7 @@ def upload_custom_part_attributes():
 
     if file and file.filename.endswith('.csv'):
         try:
-            csv_buffer = read_csv_file(file)
+            csv_buffer = read_csv_file(file, required_columns, nullable_columns)
 
             try:
                 loaded_volume = w.volumes.read(name=f"{volume_catalog}.{volume_schema}.{volume_name}/{volume_folder}")
@@ -228,7 +248,7 @@ def upload_custom_part_attributes():
                         existing_cluster_id=os.getenv('CLUSTER_ID'),
                         notebook_task=NotebookTask(
                             base_parameters=dict(""),
-                            notebook_path=notebook
+                            notebook_path=notebook_path
                         ),
                         task_key='create_table_form_csv_in_volumes'
                     )
@@ -240,6 +260,11 @@ def upload_custom_part_attributes():
 
             run_by_id = w.jobs.run_now(job_id=jobid.job_id, notebook_params=notebook_params).result()
 
+            run_results = w.jobs.get_run_output(run_id=run_by_id.tasks[0].run_id).notebook_output.result
+
+            if run_results and 'Error' in run_results:
+                raise Exception(run_results)
+
             flash('CSV uploaded and data inserted successfully!')
 
             # cleanup
@@ -248,7 +273,7 @@ def upload_custom_part_attributes():
 
         except Exception as e:
             flash(f'An error occurred: Please try again')
-            app.logger.info(f'An error occurred: {str(e)}')
+            logger.exception(f'An error occurred: {str(e)}')
             return redirect(url_for('upload_form_cust_part_attr'))
 
     else:
