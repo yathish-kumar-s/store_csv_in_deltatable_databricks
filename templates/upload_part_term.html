@@ -4,28 +4,28 @@
 
 {% block content %}
     <div class="file-headings">
-        <h1>Upload Part Term CSV File</h1>
+        <h1>Upload Part Terms CSV File</h1>
         <p class="file-details">Upload file details: lc, part, parttermid.</p>
     </div>
 
 
-    {% with messages = get_flashed_messages() %}
+    {% with messages = get_flashed_messages(with_categories=true) %}
       {% if messages %}
-        <ul>
-        {% for message in messages %}
-          <li>{{ message }}</li>
-        {% endfor %}
+        <ul class="flash-messages">
+          {% for category, message in messages %}
+            <li class="flash-message {{ category }}">{{ message }}</li>
+          {% endfor %}
         </ul>
       {% endif %}
     {% endwith %}
 
     <div class="loading-spinner" id="spinner">
-        <img src="/static/images/spinner.gif" alt="Loading...">
+        <img src="/static/images/spinner.svg" alt="Loading...">
     </div>
 
     <form id="uploadForm" action="{{ url_for('upload_part_term') }}" method="POST" enctype="multipart/form-data">
         <input type="file" name="file" accept=".csv" required>
-        <button type="submit" id="uploadButton">Upload</button>
+        <button class="upload-button" type="submit" id="uploadButton">Upload</button>
     </form>
 
     <script src="{{ url_for('static', filename='js/spinner.js') }}"></script>

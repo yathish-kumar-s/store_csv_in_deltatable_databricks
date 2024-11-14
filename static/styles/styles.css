@@ -54,39 +54,39 @@ input[type="file"] {
     border-radius: 5px;
 }
 
-button {
-    padding: 10px;
-    background-color: #007bff;
-    color: white;
-    border: none;
-    border-radius: 5px;
-    cursor: pointer;
-}
+/*button {*/
+/*    padding: 10px;*/
+/*    background-color: #007bff;*/
+/*    color: white;*/
+/*    border: none;*/
+/*    border-radius: 5px;*/
+/*    cursor: pointer;*/
+/*}*/
 
-button:hover {
-    background-color: #0056b3;
-}
+/*button:hover {*/
+/*    background-color: #0056b3;*/
+/*}*/
 
-button:disabled {
-    background-color: #7a7a7a;
-    cursor: not-allowed;
-}
+/*button:disabled {*/
+/*    background-color: #7a7a7a;*/
+/*    cursor: not-allowed;*/
+/*}*/
 
 /* Link Styling */
-a {
-    display: inline-block;
-    margin-top: 20px;
-    padding: 10px 15px;
-    background-color: #007bff;
-    color: white;
-    text-decoration: none;
-    border-radius: 5px;
-    font-size: 18px;
-}
+/*a {*/
+/*    display: inline-block;*/
+/*    margin-top: 20px;*/
+/*    padding: 10px 15px;*/
+/*    background-color: #007bff;*/
+/*    color: white;*/
+/*    text-decoration: none;*/
+/*    border-radius: 5px;*/
+/*    font-size: 18px;*/
+/*}*/
 
-a:hover {
-    background-color: #0056b3;
-}
+/*a:hover {*/
+/*    background-color: #0056b3;*/
+/*}*/
 
 /* Loading Spinner */
 .loading-spinner {
@@ -118,6 +118,7 @@ a:hover {
 
 .upload-section a {
     display: inline-block;
+    width: 50%;
     margin-top: 10px;
     padding: 10px 15px;
     background-color: #007bff;
@@ -138,3 +139,117 @@ a:hover {
 .file-headings{
     margin-bottom: 30px;
 }
+
+/* Flash Message Container */
+.flash-messages {
+    list-style: none;
+    padding: 0;
+    margin: 10px 0;
+}
+
+/* Individual Flash Message Styles */
+.flash-message {
+    padding: 15px;
+    margin-bottom: 10px;
+    border-radius: 5px;
+    font-size: 16px;
+    font-family: Arial, sans-serif;
+    position: relative;
+    animation: fadeIn 0.5s ease-in-out;
+}
+
+/* Success Message */
+.flash-message.success {
+    background-color: #d4edda;
+    color: #155724;
+    border: 1px solid #c3e6cb;
+}
+
+/* Error Message */
+.flash-message.error {
+    background-color: #f8d7da;
+    color: #721c24;
+    border: 1px solid #f5c6cb;
+}
+
+/* Warning Message */
+.flash-message.warning {
+    background-color: #fff3cd;
+    color: #856404;
+    border: 1px solid #ffeeba;
+}
+
+/* Info Message */
+.flash-message.info {
+    background-color: #d1ecf1;
+    color: #0c5460;
+    border: 1px solid #bee5eb;
+}
+
+/* Close Button */
+.close-btn {
+    content: "×";
+    position: absolute;
+    top: 10px;
+    right: 15px;
+    cursor: pointer;
+    font-weight: bold;
+}
+
+/* Close Animation */
+.close-btn:hover {
+    color: red;
+}
+
+/* Fade-In Animation */
+@keyframes fadeIn {
+    from {
+        opacity: 0;
+    }
+    to {
+        opacity: 1;
+    }
+}
+
+
+/* Ensure the buttons container aligns items side by side */
+.buttons_container {
+    display: flex;
+    gap: 10px;
+    justify-content: center; /* Centers the buttons horizontally */
+    margin-top: 20px;
+}
+
+/* Style for both buttons to ensure they have the same appearance */
+.buttons_container div {
+    flex: 1; /* Allows the buttons to take equal space */
+    display: flex;
+    justify-content: center;
+}
+
+.upload-button, .download_template {
+    display: inline-block;
+    width: 100%; /* Full width to allow equal sizing */
+    padding: 10px 20px;
+    font-size: 16px;
+    text-align: center;
+    color: #fff;
+    background-color: #007bff; /* Primary button color */
+    border: none;
+    border-radius: 5px;
+    text-decoration: none; /* Removes underline for anchor link */
+    cursor: pointer;
+    transition: background-color 0.3s;
+}
+
+.upload-button:hover, .download_template:hover {
+    background-color: #0056b3; /* Darker shade on hover */
+}
+
+/* Responsive adjustments */
+@media (max-width: 600px) {
+    .buttons_container {
+        flex-direction: column; /* Stack buttons vertically on smaller screens */
+    }
+}
+

@@ -4,28 +4,37 @@
 
 {% block content %}
     <div class="file-headings">
-        <h1>Upload GoodBetterBest CSV File.</h1>
-        <p class="file-details">Upload file details: lc, part, quality, quality_id.</p>
+        <h1>Upload Good, Better, Best CSV File</h1>
+        <p class="file-details">Upload file details: lc, part, good, better, best, ultra_premium.</p>
     </div>
 
 
-    {% with messages = get_flashed_messages() %}
+    {% with messages = get_flashed_messages(with_categories=true) %}
       {% if messages %}
-        <ul>
-        {% for message in messages %}
-          <li>{{ message }}</li>
-        {% endfor %}
+        <ul class="flash-messages">
+          {% for category, message in messages %}
+            <li class="flash-message {{ category }}">{{ message }}</li>
+          {% endfor %}
         </ul>
       {% endif %}
     {% endwith %}
 
+
     <div class="loading-spinner" id="spinner">
-        <img src="/static/images/spinner.gif" alt="Loading...">
+        <img src="/static/images/spinner.svg" alt="Loading...">
     </div>
 
     <form id="uploadForm" action="{{ url_for('upload_file') }}" method="POST" enctype="multipart/form-data">
-        <input type="file" name="file" accept=".csv" required>
-        <button type="submit" id="uploadButton">Upload</button>
+            <input class="file-input" type="file" name="file" accept=".csv" required>
+
+        <div class="buttons_container">
+            <div>
+                <a class="download_template" href="{{ url_for('download_gbb_template') }}" download>Download CSV Template</a>
+            </div>
+            <div>
+                <button class="upload-button" type="submit" id="uploadButton">Upload</button>
+            </div>
+    </div>
     </form>
 
     <script src="{{ url_for('static', filename='js/spinner.js') }}"></script>

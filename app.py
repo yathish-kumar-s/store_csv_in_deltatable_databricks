@@ -2,13 +2,14 @@ import os
 import pandas as pd
 import io
 import logging
+from datetime import datetime
 from databricks.sdk import WorkspaceClient
 # from databricks.sdk.runtime.dbutils_stub import dbutils
 from databricks.sdk.service.jobs import Task, NotebookTask
 from dotenv import load_dotenv
-from flask import Flask, request, render_template, redirect, url_for, flash
-
-from utils import read_csv_file
+from flask import Flask, request, render_template, redirect, url_for, flash, send_file
+# from update_tables import update_goodbetterbest_table
+from utils import read_csv_file, create_templates_df_csv_buffer, validate_good_better_best, get_csv_buffer
 
 load_dotenv()
 
@@ -74,37 +75,41 @@ def upload_form_cust_part_attr():
 
 @app.route('/upload_csv', methods=['POST'])
 def upload_file():
+
+    cluster_state = w.clusters.get(cluster_id=os.getenv('CLUSTER_ID')).state.value
+    if cluster_state != 'RUNNING':
+        if cluster_state == 'TERMINATED':
+            w.clusters.start(cluster_id=os.getenv('CLUSTER_ID'))
+            flash(f"Cluster is offline. Please try again in 5 mins", category='info')
+            return redirect(url_for('upload_form'))
+        flash(f"Cluster is offline. Please try again in 5 mins", category='info')
+        return redirect(url_for('upload_form'))
+
     volume_folder = 'apps/goodbetterbest'
     notebook_path = '/Workspace/Repos/PA/Databricks/Databricks-Apps/upload-file-notebooks/good_better_best'
-    required_columns = ['lc', 'part', 'quality_id', 'quality']
-    nullable_columns = ['quality_id']
+    required_columns = ['lc', 'part', 'good', 'better', 'best', 'ultra_premium']
+    nullable_columns = ['good', 'better', 'best', 'ultra_premium']
+
     if 'file' not in request.files:
-        flash('No file part')
+        flash('No file part', category='error')
         return redirect(request.url)
 
     file = request.files['file']
-
     if file.filename == '':
-        flash('No selected file')
+        flash('No selected file', category='error')
         return redirect(request.url)
 
     if file and file.filename.endswith('.csv'):
         try:
-
-            csv_buffer = read_csv_file(file, required_columns, nullable_columns)
-
-            # try:
-            #     loaded_volume = w.volumes.read(name=f"{volume_catalog}.{volume_schema}.{volume_name}/{volume_folder}")
-            # except Exception as e:
-            #     print('Volume does not exist')
-            #     raise
-
+            df = pd.read_csv(file)
+            validate_good_better_best(df, required_columns, nullable_columns)
+            csv_buffer = get_csv_buffer(df)
             file_path_in_volume = f"/Volumes/{volume_catalog}/{volume_schema}/{volume_name}/{volume_folder}/{file.filename}"
             w.files.upload(file_path=file_path_in_volume, contents=csv_buffer, overwrite=True)
 
             jobid = w.jobs.create(
                 name='create_table_form_csv_in_volumes',
-                tasks=[
+                   tasks=[
                     Task(
                         existing_cluster_id=os.getenv('CLUSTER_ID'),
                         notebook_task=NotebookTask(
@@ -118,58 +123,60 @@ def upload_file():
             )
 
             notebook_params = dict(file_name=file.filename)
-
             run_by_id = w.jobs.run_now(job_id=jobid.job_id, notebook_params=notebook_params).result()
-
             run_results = w.jobs.get_run_output(run_id=run_by_id.tasks[0].run_id).notebook_output.result
 
             if run_results and 'Error' in run_results:
                 raise Exception(run_results)
 
-            flash('CSV uploaded and data inserted successfully!')
+            flash('CSV uploaded and data inserted successfully!', category='success')
 
             # cleanup
             w.jobs.delete(job_id=jobid.job_id)
             return redirect(url_for('upload_form'))
 
         except Exception as e:
-            flash(f'An error occurred: Please try again')
+            flash(f'An error occurred: Please try again', category='error')
             print(str(e))
             logger.exception(f'An error occurred: {str(e)}')
             return redirect(url_for('upload_form'))
 
     else:
-        flash('Invalid file format. Please upload a CSV.')
+        flash('Invalid file format. Please upload a CSV.', category='error')
         return redirect(url_for('upload_form'))
 
 
 @app.route('/upload_part_term', methods=['POST'])
 def upload_part_term():
+
+    cluster_state = w.clusters.get(cluster_id=os.getenv('CLUSTER_ID')).state.value
+    if cluster_state != 'RUNNING':
+        if cluster_state == 'TERMINATED':
+            w.clusters.start(cluster_id=os.getenv('CLUSTER_ID'))
+            flash(f"Cluster is offline. Please try again in 5 mins", category='info')
+            return redirect(url_for('upload_form_part_term'))
+        flash(f"Cluster is offline. Please try again in 5 mins", category='info')
+        return redirect(url_for('upload_form_part_term'))
+
     volume_folder = 'apps/part_term'
     notebook_path = '/Workspace/Repos/PA/Databricks/Databricks-Apps/upload-file-notebooks/part_term'
     required_columns = ['lc', 'part', 'parttermid']
     nullable_columns = []
 
     if 'file' not in request.files:
-        flash('No file part')
+        flash('No file part', category='error')
         return redirect(request.url)
 
     file = request.files['file']
 
     if file.filename == '':
-        flash('No selected file')
+        flash('No selected file', category='error')
         return redirect(request.url)
 
     if file and file.filename.endswith('.csv'):
         try:
 
             csv_buffer = read_csv_file(file, required_columns, nullable_columns)
-
-            try:
-                loaded_volume = w.volumes.read(name=f"{volume_catalog}.{volume_schema}.{volume_name}/{volume_folder}")
-            except Exception as e:
-                print('Volume does not exist')
-
             file_path_in_volume = f"/Volumes/{volume_catalog}/{volume_schema}/{volume_name}/{volume_folder}/{file.filename}"
             w.files.upload(file_path=file_path_in_volume, contents=csv_buffer, overwrite=True)
 
@@ -189,60 +196,62 @@ def upload_part_term():
             )
 
             notebook_params = dict(file_name=file.filename)
-
             run_by_id = w.jobs.run_now(job_id=jobid.job_id, notebook_params=notebook_params).result()
-
             run_results = w.jobs.get_run_output(run_id=run_by_id.tasks[0].run_id).notebook_output.result
 
             if run_results and 'Error' in run_results:
                 raise Exception(run_results)
 
-            flash('CSV uploaded and data inserted successfully!')
+            flash('CSV uploaded and data inserted successfully!', category='success')
 
             # cleanup
             w.jobs.delete(job_id=jobid.job_id)
             return redirect(url_for('upload_form_part_term'))
 
         except Exception as e:
-            flash(f'An error occurred: Please try again')
+            flash(f'An error occurred: Please try again', category='error')
             logger.exception(f'An error occurred: {str(e)}')
             return redirect(url_for('upload_form_part_term'))
 
     else:
-        flash('Invalid file format. Please upload a CSV.')
+        flash('Invalid file format. Please upload a CSV.', category='error')
         return redirect(url_for('upload_form_part_term'))
 
 
 @app.route('/upload_custom_part_attributes', methods=['POST'])
 def upload_custom_part_attributes():
+
+    cluster_state = w.clusters.get(cluster_id=os.getenv('CLUSTER_ID')).state.value
+    if cluster_state != 'RUNNING':
+        if cluster_state == 'TERMINATED':
+            w.clusters.start(cluster_id=os.getenv('CLUSTER_ID'))
+            flash(f"Cluster is offline. Please try again in 5 mins", category='info')
+            return redirect(url_for('upload_form_cust_part_attr'))
+        flash(f"Cluster is offline. Please try again in 5 mins", category='info')
+        return redirect(url_for('upload_form_cust_part_attr'))
+
     volume_folder = 'apps/custompartattributes'
     notebook_path = '/Workspace/Repos/PA/Databricks/Databricks-Apps/upload-file-notebooks/custompartattributes'
     required_columns = ['lc', 'part',  'partattributecode', 'partattributedescription']
     nullable_columns = ['partattributecode']
     if 'file' not in request.files:
-        flash('No file part')
+        flash('No file part', category='error')
         return redirect(request.url)
 
     file = request.files['file']
 
     if file.filename == '':
-        flash('No selected file')
+        flash('No selected file', category='error')
         return redirect(request.url)
 
     if file and file.filename.endswith('.csv'):
         try:
             csv_buffer = read_csv_file(file, required_columns, nullable_columns)
-
-            try:
-                loaded_volume = w.volumes.read(name=f"{volume_catalog}.{volume_schema}.{volume_name}/{volume_folder}")
-            except Exception as e:
-                print('Volume does not exist')
-
             file_path_in_volume = f"/Volumes/{volume_catalog}/{volume_schema}/{volume_name}/{volume_folder}/{file.filename}"
             w.files.upload(file_path=file_path_in_volume, contents=csv_buffer, overwrite=True)
 
             jobid = w.jobs.create(
-                name='create_table_form_csv_in_volumes',
+                name='create_table_cust_attr_from_csv_in_volumes',
                 tasks=[
                     Task(
                         existing_cluster_id=os.getenv('CLUSTER_ID'),
@@ -250,7 +259,7 @@ def upload_custom_part_attributes():
                             base_parameters=dict(""),
                             notebook_path=notebook_path
                         ),
-                        task_key='create_table_form_csv_in_volumes'
+                        task_key='create_table_cust_attr_from_csv_in_volumes'
                     )
                 ]
 
@@ -265,20 +274,35 @@ def upload_custom_part_attributes():
             if run_results and 'Error' in run_results:
                 raise Exception(run_results)
 
-            flash('CSV uploaded and data inserted successfully!')
+            flash('CSV uploaded and data inserted successfully!', category='success')
 
             # cleanup
             w.jobs.delete(job_id=jobid.job_id)
             return redirect(url_for('upload_form_cust_part_attr'))
 
         except Exception as e:
-            flash(f'An error occurred: Please try again')
+            flash(f'An error occurred: Please try again', category='error')
             logger.exception(f'An error occurred: {str(e)}')
             return redirect(url_for('upload_form_cust_part_attr'))
 
     else:
-        flash('Invalid file format. Please upload a CSV.')
+        flash('Invalid file format. Please upload a CSV.', category='error')
         return redirect(url_for('upload_form_cust_part_attr'))
+
+
+@app.route('/download_gbb_template', methods=['GET'])
+def download_gbb_template():
+    timestamp = datetime.now().strftime("%Y%m%d%H%M%S")
+    columns = ['lc', 'part', 'good', 'better', 'best', 'ultra_premium']
+    csv_stream = create_templates_df_csv_buffer(columns)
+
+    # Send CSV file as an attachment
+    return send_file(
+        csv_stream,
+        as_attachment=True,
+        download_name=f"good_better_best_template_{timestamp}.csv",
+        mimetype='text/csv'
+    )
 
 
 if __name__ == '__main__':
