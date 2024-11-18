@@ -6,6 +6,16 @@
     <h1>Welcome to the CSV Uploader</h1>
     <p class="file-details">Click the buttons below to upload CSV files.</p>
 
+        {% with messages = get_flashed_messages(with_categories=true) %}
+      {% if messages %}
+        <ul class="flash-messages">
+          {% for category, message in messages %}
+            <li class="flash-message {{ category }}">{{ message }}</li>
+          {% endfor %}
+        </ul>
+      {% endif %}
+    {% endwith %}
+
     <div class="upload-container">
         <div class="upload-section">
             <a href="{{ url_for('upload_form') }}">Good, Better, Best</a>

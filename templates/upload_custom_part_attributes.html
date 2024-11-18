@@ -5,9 +5,7 @@
 {% block content %}
     <div class="file-headings">
         <h1>Upload Custom Part Attributes CSV File</h1>
-        <p class="file-details">Upload file details: lc, part, partattributecode, partattributedescription.</p>
     </div>
-
 
     {% with messages = get_flashed_messages(with_categories=true) %}
       {% if messages %}
@@ -24,9 +22,52 @@
     </div>
 
     <form id="uploadForm" action="{{ url_for('upload_custom_part_attributes') }}" method="POST" enctype="multipart/form-data">
-        <input type="file" name="file" accept=".csv" required>
-        <button class="upload-button" type="submit" id="uploadButton">Upload</button>
+{#        <label for="CpaPartId">Select ID:</label>#}
+        <select class="cpa-dropdown" id="CpaPartId" name="selected_id" required>
+            <option value="" disabled selected>Select Custom Part Attributes ID</option>
+            {% for id in id_list %}
+                <option value="{{ id }}">{{ id }}</option>
+            {% endfor %}
+        </select>
+
+        <input class="file-input" type="file" name="file" accept=".csv" required>
+
+        <div class="cpacheckbox-container">
+            <input type="checkbox" id="prefillSkuCheckbox" name="prefill_sku">
+            <label for="prefillSkuCheckbox">Prefill SKU In Template</label>
+        </div>
+
+        <div class="buttons_container">
+            <div>
+                <a class="download_template" href="{{ url_for('download_cpa_template', selected_id='') }}" download id="cpadownloadTemplateLink">Download CSV Template</a>
+            </div>
+            <div>
+                <button class="upload-button" type="submit" id="uploadButton">Upload</button>
+            </div>
+        </div>
     </form>
 
     <script src="{{ url_for('static', filename='js/spinner.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/utils.js') }}"></script>
+    <script>
+    function updateDownloadLink(){
+    if (idSelect.value){
+        const selectedId = idSelect.value;
+        downloadTemplate.classList.remove("disabled");
+        downloadTemplate.href = "{{ url_for('download_cpa_template') }}" + "?CpaPartId=" + selectedId.split('-')[0];
+        if (prefillSkuCheckbox.checked) {
+                downloadTemplate.href += "&prefill_sku=true";
+            }
+        }
+    else{
+        downloadTemplate.href = "";
+        downloadTemplate.classList.add("disabled");
+        }
+}
+
+prefillSkuCheckbox.addEventListener('click', updateDownloadLink);
+idSelect.addEventListener('change', updateDownloadLink)
+
+    </script>
+
 {% endblock %}

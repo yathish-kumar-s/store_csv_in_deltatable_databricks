@@ -253,3 +253,41 @@ input[type="file"] {
     }
 }
 
+
+.cpa-dropdown{
+    width: 100%;
+    padding: 10px;
+    margin-top: 8px;
+    font-size: 14px;
+    border-radius: 5px;
+    border: 1px solid #ccc;
+}
+
+
+
+.cpacheckbox-container {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.cpacheckbox-container input[type="checkbox"] {
+    width: 15px;
+    height: 18px;
+    cursor: pointer;
+}
+
+.cpacheckbox-container label {
+    font-size: 14px;
+    cursor: pointer;
+    color: #333;
+    font-weight: 400;
+}
+
+.cpacheckbox-container input[type="checkbox"]:checked + label {
+    color: #007BFF; /* Change text color when checked */
+}
+
+.cpacheckbox-container input[type="checkbox"]:focus-visible {
+    outline: 2px solid #007BFF; /* Focus outline for accessibility */
+}

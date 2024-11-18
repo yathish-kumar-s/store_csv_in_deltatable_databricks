@@ -1,6 +1,10 @@
 import io
+import os
 import pandas as pd
 from flask import flash
+from databricks import sql
+
+from database_connector import db_connector
 
 
 def validate_missing_columns(df, required_columns):
@@ -15,6 +19,10 @@ def validate_missing_columns(df, required_columns):
 
 def validate_null_columns(df, nullable_columns):
     """Ensure that only the specified columns are allowed to be null."""
+
+    if df.empty:
+        flash(f"The file doesn't contain data please check again", category='error')
+        raise ValueError(f"Dataframe is empty")
     nullable_columns = [col.lower() for col in nullable_columns]
     not_null_columns = [col for col in df.columns if col.lower() not in nullable_columns]
     null_columns = [
@@ -50,8 +58,36 @@ def validate_single_selection_good_better_best_ultra_premium_columns(df):
     and the others are either NaN or empty.
     """
     df[['good', 'better', 'best', 'ultra_premium']] = df[['good', 'better', 'best', 'ultra_premium']].apply(
-        lambda col: col.str.strip().str.lower())
+        lambda col: col.astype(str).str.strip().str.lower())
     df['is_valid'] = df.apply(validate_single_selection, axis=1)
+    invalid_rows = df[df['is_valid'] == False]
+
+    if not invalid_rows.empty:
+        invalid_parts = [str(part) for part in invalid_rows['part'].tolist()]
+        flash(f"Invalid data in rows with part no: {', '.join(invalid_parts)}", category='error')
+        raise ValueError(f"Invalid data in rows with part no: {', '.join(invalid_parts)}")
+
+
+def validate_single_selection_custom_attributes(row, value_columns):
+    values = row[value_columns]
+    if not all([value == 'x' or pd.isna(value) or ' ' for value in values]):
+        return False
+
+    count_x = (values == 'x').sum()
+    return count_x == 1
+
+
+def validate_single_selection_custom_part_attribute_columns(df):
+    """
+    Validates the 'good', 'better', 'best', and 'ultra_premium' columns in the provided DataFrame.
+    It ensures that each row has exactly one of the columns marked with 'x',
+    and the others are either NaN or empty.
+    """
+    cols = ['partid', 'lc', 'part']
+    value_columns = [c for c in df.columns if c not in cols]
+    df[value_columns] = df[value_columns].apply(
+        lambda col: col.astype(str).str.strip().str.lower())
+    df['is_valid'] = df.apply(validate_single_selection_custom_attributes,  axis=1, value_columns=value_columns)
     invalid_rows = df[df['is_valid'] == False]
 
     if not invalid_rows.empty:
@@ -67,6 +103,8 @@ def validate_good_better_best(df, required_columns, nullable_columns):
     validate_missing_columns(df, required_columns)
     validate_null_columns(df, nullable_columns)
     validate_single_selection_good_better_best_ultra_premium_columns(df)
+    df = df.drop('is_valid', axis=1)
+    return df
 
 
 def validate_part_terms(df, required_columns, nullable_columns):
@@ -81,14 +119,20 @@ def validate_custom_part_attributes(df, required_columns, nullable_columns):
     """
     Validation for custom part attributes dataframe
     """
+    if not nullable_columns:
+        nullable_columns = [col for col in df.columns if col not in required_columns]
     validate_missing_columns(df, required_columns)
     validate_null_columns(df, nullable_columns)
+    validate_single_selection_custom_part_attribute_columns(df)
+    df = df.drop('is_valid', axis=1)
+    return df
 
 def get_csv_buffer(df):
     """
      Converts a DataFrame into a CSV buffer.
     """
     csv_buffer = io.BytesIO()
+    df.columns = df.columns.str.lower()
     df.to_csv(csv_buffer, index=False)
     csv_buffer.seek(0)
 
@@ -98,8 +142,7 @@ def get_csv_buffer(df):
 
 def read_csv_file(file, required_columns=None, nullable_columns=None):
     df = pd.read_csv(file)
-    validate_missing_columns(df, required_columns or [])
-    validate_null_columns(df, nullable_columns or [])
+    df.columns = df.columns.str.lower()
     csv_buffer = io.BytesIO()
     df.to_csv(csv_buffer, index=False)
     csv_buffer.seek(0)
@@ -116,3 +159,50 @@ def create_templates_df_csv_buffer(columns):
     df.to_csv(csv_stream, index=False)
     csv_stream.seek(0)
     return csv_stream
+
+def create_templates_df_cpa(columns, part_id):
+    """
+     Creates a DataFrame with the specified columns and returns it as a CSV buffer.
+    """
+    df = pd.DataFrame(columns=columns)
+    df.loc[len(df)] = [part_id] + [None]*(len(columns)-1)
+    csv_stream = io.BytesIO()
+    df.to_csv(csv_stream, index=False)
+    csv_stream.seek(0)
+    return csv_stream
+
+
+
+def create_templates_df_cpa_prefilled_sku(columns, part_id):
+    """
+     Creates a DataFrame with the specified columns and returns it as a CSV buffer.
+    """
+
+    with db_connector() as connection:
+        with connection.cursor() as cursor:
+            default_columns = ['PartId', 'LC', 'Part']
+            attribute_cols = [column for column in columns if column not in default_columns]
+            partterm_id = part_id
+
+            select_attr_cols = ''
+            for item in attribute_cols:
+                select_attr_cols = select_attr_cols + ", '' as " + f"`{item}`"
+
+            query = f"""
+                      select a.partterm PartId,s.linecode LC,s.partnumber Part{select_attr_cols}
+                      from catalogdata.silver.ptfinal a
+                      join dst.gold.skumaster s on a.sku = s.sku where partterm = {partterm_id}
+                    """
+
+            rows = cursor.execute(query).fetchall()
+
+    data_dict = [row.asDict() for row in rows]
+    df = pd.DataFrame(data_dict)
+    csv_stream = io.BytesIO()
+    df.to_csv(csv_stream, index=False)
+    csv_stream.seek(0)
+
+    cursor.close()
+    connection.close()
+    return csv_stream
+
