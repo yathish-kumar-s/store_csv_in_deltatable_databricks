@@ -141,8 +141,9 @@ def get_csv_buffer(df):
 
 
 def read_csv_file(file, required_columns=None, nullable_columns=None):
-    df = pd.read_csv(file)
+    df = pd.read_excel(file)
     df.columns = df.columns.str.lower()
+    validate_part_terms(df, required_columns, nullable_columns)
     csv_buffer = io.BytesIO()
     df.to_csv(csv_buffer, index=False)
     csv_buffer.seek(0)
@@ -156,7 +157,7 @@ def create_templates_df_csv_buffer(columns):
     """
     df = pd.DataFrame(columns=columns)
     csv_stream = io.BytesIO()
-    df.to_csv(csv_stream, index=False)
+    df.to_excel(csv_stream, index=False)
     csv_stream.seek(0)
     return csv_stream
 
@@ -167,20 +168,19 @@ def create_templates_df_cpa(columns, part_id):
     df = pd.DataFrame(columns=columns)
     df.loc[len(df)] = [part_id] + [None]*(len(columns)-1)
     csv_stream = io.BytesIO()
-    df.to_csv(csv_stream, index=False)
+    df.to_excel(csv_stream, index=False)
     csv_stream.seek(0)
     return csv_stream
 
 
 
-def create_templates_df_cpa_prefilled_sku(columns, part_id):
+def create_templates_df_cpa_prefilled_sku(default_columns,columns, part_id, cpa_type, cpa_category):
     """
      Creates a DataFrame with the specified columns and returns it as a CSV buffer.
     """
 
     with db_connector() as connection:
         with connection.cursor() as cursor:
-            default_columns = ['PartId', 'LC', 'Part']
             attribute_cols = [column for column in columns if column not in default_columns]
             partterm_id = part_id
 
@@ -189,17 +189,18 @@ def create_templates_df_cpa_prefilled_sku(columns, part_id):
                 select_attr_cols = select_attr_cols + ", '' as " + f"`{item}`"
 
             query = f"""
-                      select a.partterm PartId,s.linecode LC,s.partnumber Part{select_attr_cols}
-                      from catalogdata.silver.ptfinal a
-                      join dst.gold.skumaster s on a.sku = s.sku where partterm = {partterm_id}
-                    """
+                  select a.partterm PartId,s.linecode LC,s.partnumber Part, '{cpa_type}' as `PartAttributeType`
+                  , '{cpa_category}' as `PartAttributeCategory` {select_attr_cols}
+                  from catalogdata.silver.ptfinal a
+                  join dst.gold.skumaster s on a.sku = s.sku where partterm = {partterm_id}
+                """
 
             rows = cursor.execute(query).fetchall()
 
     data_dict = [row.asDict() for row in rows]
     df = pd.DataFrame(data_dict)
     csv_stream = io.BytesIO()
-    df.to_csv(csv_stream, index=False)
+    df.to_excel(csv_stream, index=False)
     csv_stream.seek(0)
 
     cursor.close()

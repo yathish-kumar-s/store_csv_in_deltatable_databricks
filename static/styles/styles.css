@@ -30,6 +30,10 @@ header {
     max-height: 33px;
 }
 
+.header-title a img{
+    max-height: 33px;
+}
+
 /* Main Content Styling */
 main {
     padding: 20px;
@@ -290,4 +294,38 @@ input[type="file"] {
 
 .cpacheckbox-container input[type="checkbox"]:focus-visible {
     outline: 2px solid #007BFF; /* Focus outline for accessibility */
+}
+
+
+.cpa-cat-dropdown-container {
+    display: flex;
+    gap: 1rem; /* Space between dropdowns */
+    width: 100%; /* Adjust width as needed */
+}
+
+.cpa-cat-dropdown {
+    width: 100%;
+    padding: 10px;
+    border: 1px solid #ccc;
+    border-radius: 5px;
+    font-size: 14px;
+    background-color: #fff;
+    cursor: pointer;
+    transition: border-color 0.3s, box-shadow 0.3s;
+}
+
+.cpa-cat-dropdown:focus {
+    border-color: #007bff;
+    box-shadow: 0 0 5px rgba(0, 123, 255, 0.5);
+    outline: none;
+}
+
+.cpa-cat-dropdown option {
+    padding: 5px;
+    font-size: 14px;
+}
+
+/* Optional: Style the container to look better on hover */
+.cpa-cat-dropdown-container:hover {
+    border-color: #007bff;
 }

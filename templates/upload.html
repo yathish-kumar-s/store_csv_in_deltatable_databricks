@@ -4,7 +4,7 @@
 
 {% block content %}
     <div class="file-headings">
-        <h1>Upload Good, Better, Best CSV File</h1>
+        <h1>Upload Good, Better, Best File</h1>
         <p class="file-details">Upload file details: lc, part, good, better, best, ultra_premium.</p>
     </div>
 
@@ -25,11 +25,11 @@
     </div>
 
     <form id="uploadForm" action="{{ url_for('upload_file') }}" method="POST" enctype="multipart/form-data">
-            <input class="file-input" type="file" name="file" accept=".csv" required>
+            <input class="file-input" type="file" name="file" accept=".xlsx" required>
 
         <div class="buttons_container">
             <div>
-                <a class="download_template" href="{{ url_for('download_gbb_template') }}" download>Download CSV Template</a>
+                <a class="download_template" href="{{ url_for('download_gbb_template') }}" download>Download Template</a>
             </div>
             <div>
                 <button class="upload-button" type="submit" id="uploadButton">Upload</button>

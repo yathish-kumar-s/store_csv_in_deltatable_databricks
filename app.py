@@ -107,8 +107,8 @@ def upload_form_cust_part_attr():
 
 @app.route('/upload_csv', methods=['POST'])
 def upload_file():
-
-    volume_folder = 'apps/goodbetterbest'
+    timestamp = datetime.now()
+    volume_folder = f'apps/goodbetterbest/{timestamp.year}/{timestamp.month}'
     # notebook_path = '/Workspace/Repos/PA/Databricks/Databricks-Apps/upload-file-notebooks/good_better_best'
     required_columns = ['lc', 'part', 'good', 'better', 'best', 'ultra_premium']
     nullable_columns = ['good', 'better', 'best', 'ultra_premium']
@@ -122,22 +122,24 @@ def upload_file():
         flash('No selected file', category='error')
         return redirect(request.url)
 
-    if file and file.filename.endswith('.csv'):
+    if file and file.filename.endswith('.xlsx'):
         try:
-            df = pd.read_csv(file)
+            filename = f'{file.filename[:-5]}.csv'
+            df = pd.read_excel(file)
             df = validate_good_better_best(df, required_columns, nullable_columns)
             csv_buffer = get_csv_buffer(df)
-            file_path_in_volume = f"/Volumes/{volume_catalog}/{volume_schema}/{volume_name}/{volume_folder}/{file.filename}"
+
+            file_path_in_volume = f"/Volumes/{volume_catalog}/{volume_schema}/{volume_name}/{volume_folder}/{filename}"
             w.files.upload(file_path=file_path_in_volume, contents=csv_buffer, overwrite=True)
 
-            notebook_params = dict(file_name=file.filename)
+            notebook_params = dict(file_name=filename)
             run_by_id = w.jobs.run_now(job_id=GBB_NOTEBOOK_JOB, notebook_params=notebook_params).result()
             run_results = w.jobs.get_run_output(run_id=run_by_id.tasks[0].run_id).notebook_output.result
 
             if run_results and 'Error' in run_results:
                 raise Exception(run_results)
 
-            flash('CSV uploaded and data inserted successfully!', category='success')
+            flash('File uploaded and data inserted successfully!', category='success')
             return redirect(url_for('upload_form'))
 
         except Exception as e:
@@ -147,7 +149,7 @@ def upload_file():
             return redirect(url_for('upload_form'))
 
     else:
-        flash('Invalid file format. Please upload a CSV.', category='error')
+        flash('Invalid file format. Please upload a XLSX.', category='error')
         return redirect(url_for('upload_form'))
 
 
@@ -162,9 +164,9 @@ def upload_part_term():
     #         return redirect(url_for('upload_form_part_term'))
     #     flash(f"Cluster is offline. Please try again in 5 mins", category='info')
     #     return redirect(url_for('upload_form_part_term'))
-
-    volume_folder = 'apps/part_term'
-    notebook_path = '/Workspace/Repos/PA/Databricks/Databricks-Apps/upload-file-notebooks/part_term'
+    timestamp = datetime.now()
+    volume_folder = f'apps/part_term/{timestamp.year}/{timestamp.month}'
+    # notebook_path = '/Workspace/Repos/PA/Databricks/Databricks-Apps/upload-file-notebooks/part_term'
     required_columns = ['lc', 'part', 'parttermid']
     nullable_columns = []
 
@@ -178,11 +180,11 @@ def upload_part_term():
         flash('No selected file', category='error')
         return redirect(request.url)
 
-    if file and file.filename.endswith('.csv'):
+    if file and file.filename.endswith('.xlsx'):
         try:
-
+            filename = f'{file.filename[:-5]}.csv'
             csv_buffer = read_csv_file(file, required_columns, nullable_columns)
-            file_path_in_volume = f"/Volumes/{volume_catalog}/{volume_schema}/{volume_name}/{volume_folder}/{file.filename}"
+            file_path_in_volume = f"/Volumes/{volume_catalog}/{volume_schema}/{volume_name}/{volume_folder}/{filename}"
             w.files.upload(file_path=file_path_in_volume, contents=csv_buffer, overwrite=True)
 
             # jobid = w.jobs.create(
@@ -200,14 +202,14 @@ def upload_part_term():
             #
             # )
 
-            notebook_params = dict(file_name=file.filename)
+            notebook_params = dict(file_name=filename)
             run_by_id = w.jobs.run_now(job_id=PT_NOTEBOOK_JOB, notebook_params=notebook_params).result()
             run_results = w.jobs.get_run_output(run_id=run_by_id.tasks[0].run_id).notebook_output.result
 
             if run_results and 'Error' in run_results:
                 raise Exception(run_results)
 
-            flash('CSV uploaded and data inserted successfully!', category='success')
+            flash('File uploaded and data inserted successfully!', category='success')
 
             # cleanup
             # w.jobs.delete(job_id=jobid.job_id)
@@ -219,16 +221,16 @@ def upload_part_term():
             return redirect(url_for('upload_form_part_term'))
 
     else:
-        flash('Invalid file format. Please upload a CSV.', category='error')
+        flash('Invalid file format. Please upload a XLSX.', category='error')
         return redirect(url_for('upload_form_part_term'))
 
 
 @app.route('/upload_custom_part_attributes', methods=['POST'])
 def upload_custom_part_attributes():
-
-    volume_folder = 'apps/custompartattributes'
+    timestamp = datetime.now()
+    volume_folder = f'apps/custompartattributes/{timestamp.year}/{timestamp.month}'
     # notebook_path = '/Workspace/Repos/PA/Databricks/Databricks-Apps/upload-file-notebooks/custompartattributes'
-    required_columns = ['lc', 'partid', 'part']
+    required_columns = ['lc', 'partid', 'part', 'partattributetype', 'partattributecategory']
     nullable_columns = []
     if 'file' not in request.files:
         flash('No file part', category='error')
@@ -240,16 +242,17 @@ def upload_custom_part_attributes():
         flash('No selected file', category='error')
         return redirect(request.url)
 
-    if file and file.filename.endswith('.csv'):
+    if file and file.filename.endswith('.xlsx'):
         try:
+            filename = f'{file.filename[:-5]}.csv'
 
-            df = pd.read_csv(file)
+            df = pd.read_excel(file)
             df = validate_custom_part_attributes(df, required_columns, nullable_columns)
             csv_buffer = get_csv_buffer(df)
-            file_path_in_volume = f"/Volumes/{volume_catalog}/{volume_schema}/{volume_name}/{volume_folder}/{file.filename}"
+            file_path_in_volume = f"/Volumes/{volume_catalog}/{volume_schema}/{volume_name}/{volume_folder}/{filename}"
             w.files.upload(file_path=file_path_in_volume, contents=csv_buffer, overwrite=True)
 
-            notebook_params = dict(file_name=file.filename)
+            notebook_params = dict(file_name=filename)
 
             run_by_id = w.jobs.run_now(job_id=CPA_NOTEBOOK_JOB, notebook_params=notebook_params).result()
 
@@ -258,7 +261,7 @@ def upload_custom_part_attributes():
             if run_results and 'Error' in run_results:
                 raise Exception(run_results)
 
-            flash('CSV uploaded and data inserted successfully!', category='success')
+            flash('File uploaded and data inserted successfully!', category='success')
             return redirect(url_for('upload_form_cust_part_attr'))
 
         except Exception as e:
@@ -267,7 +270,7 @@ def upload_custom_part_attributes():
             return redirect(url_for('upload_form_cust_part_attr'))
 
     else:
-        flash('Invalid file format. Please upload a CSV.', category='error')
+        flash('Invalid file format. Please upload a XLSX.', category='error')
         return redirect(url_for('upload_form_cust_part_attr'))
 
 
@@ -282,8 +285,8 @@ def download_gbb_template():
         return send_file(
             csv_stream,
             as_attachment=True,
-            download_name=f"good_better_best_template_{timestamp}.csv",
-            mimetype='text/csv'
+            download_name=f"good_better_best_template_{timestamp}.xlsx",
+            mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
         )
     except Exception as e:
         flash(f'An error occurred: Please try again', category='error')
@@ -297,9 +300,11 @@ def download_cpa_template():
     try:
         timestamp = datetime.now().strftime("%Y%m%d%H%M%S")
         part_id = request.args.get('CpaPartId')
-        prefill_sku = request.args.get('prefill_sku')
+        cpa_type = request.args.get('cpaType')
+        cpa_category = request.args.get('cpaCat')
+        blank_template = request.args.get('prefill_sku')
 
-        default_columns = ['PartId', 'LC', 'Part']
+        default_columns = ['PartId', 'LC', 'Part', 'PartAttributeType', 'PartAttributeCategory']
 
         with db_connector() as connection:
             with connection.cursor() as cursor:
@@ -309,8 +314,8 @@ def download_cpa_template():
         columns = default_columns + [row.partattributename for row in results]
 
 
-        if prefill_sku:
-            csv_stream = create_templates_df_cpa_prefilled_sku(columns, part_id)
+        if not blank_template:
+            csv_stream = create_templates_df_cpa_prefilled_sku(default_columns, columns, part_id, cpa_type, cpa_category)
         else:
             csv_stream = create_templates_df_cpa(columns, part_id)
 
@@ -318,13 +323,49 @@ def download_cpa_template():
         return send_file(
             csv_stream,
             as_attachment=True,
-            download_name=f"cpa_{timestamp}.csv",
-            mimetype='text/csv'
+            download_name=f"cpa_{timestamp}.xlsx",  # file name is taken care in spinner.js
+            mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
         )
     except Exception as e:
         logger.exception(f'An error occurred: {str(e)}')
         response = make_response("An error occurred", 400)
         return response
+
+
+@app.route('/get_type_values', methods=['POST'])
+def get_type_values():
+    selected_id = request.json.get('selected_id')
+
+    part_id = selected_id.split('-')[0]
+
+    with db_connector() as connection:
+        with connection.cursor() as cursor:
+            query = f"select distinct(partattributetype) from uut.dbo.custompartattributes where parttermid = {part_id}"
+            results = cursor.execute(query).fetchall()
+            values = {
+                "types": [types.partattributetype for types in results]
+            }
+    return jsonify(values)
+
+
+@app.route('/get_category_values', methods=['POST'])
+def get_category_values():
+
+    partattributetype = request.json.get('selected_id')
+
+    TermID = request.json.get('PartId').split('-')[0]
+
+    with db_connector() as connection:
+        with connection.cursor() as cursor:
+            query = (f"select distinct(partattributecategory) from uut.dbo.custompartattributes where"
+                     f" parttermid = {TermID} and partattributetype = '{partattributetype}'")
+            results = cursor.execute(query).fetchall()
+
+    values = {
+        "categories": [cat.partattributecategory for cat in results]
+    }
+
+    return jsonify(values)
 
 
 if __name__ == '__main__':

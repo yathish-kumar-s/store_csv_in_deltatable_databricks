@@ -4,7 +4,7 @@
 
 {% block content %}
     <div class="file-headings">
-        <h1>Upload Custom Part Attributes CSV File</h1>
+        <h1>Upload Custom Part Attributes File</h1>
     </div>
 
     {% with messages = get_flashed_messages(with_categories=true) %}
@@ -22,39 +22,60 @@
     </div>
 
     <form id="uploadForm" action="{{ url_for('upload_custom_part_attributes') }}" method="POST" enctype="multipart/form-data">
-{#        <label for="CpaPartId">Select ID:</label>#}
-        <select class="cpa-dropdown" id="CpaPartId" name="selected_id" required>
+
+        <select class="cpa-dropdown" id="CpaPartId" name="selected_id">
             <option value="" disabled selected>Select Custom Part Attributes ID</option>
             {% for id in id_list %}
                 <option value="{{ id }}">{{ id }}</option>
             {% endfor %}
         </select>
 
-        <input class="file-input" type="file" name="file" accept=".csv" required>
+        <div class="cpa-cat-dropdown-container">
+            <select class="cpa-cat-dropdown" id="Cpatype" name="selected_id">
+            <option value="" disabled selected>Select Custom Part Type</option>
+            {% for id in id_list %}
+                <option value="{{ id }}">{{ id }}</option>
+            {% endfor %}
+            </select>
+
+            <select class="cpa-cat-dropdown" id="Cpacat" name="selected_id">
+                <option value="" disabled selected>Select Custom Part Category</option>
+                {% for id in id_list %}
+                    <option value="{{ id }}">{{ id }}</option>
+                {% endfor %}
+            </select>
+        </div>
 
         <div class="cpacheckbox-container">
             <input type="checkbox" id="prefillSkuCheckbox" name="prefill_sku">
-            <label for="prefillSkuCheckbox">Prefill SKU In Template</label>
+            <label for="prefillSkuCheckbox">Blank Template</label>
         </div>
 
+        <div>
+            <a class="download_template" href="{{ url_for('download_cpa_template', selected_id='') }}" download id="cpadownloadTemplateLink">Download Template</a>
+        </div>
+
+        <input class="file-input" type="file" name="file" accept=".xlsx" required>
+
         <div class="buttons_container">
-            <div>
-                <a class="download_template" href="{{ url_for('download_cpa_template', selected_id='') }}" download id="cpadownloadTemplateLink">Download CSV Template</a>
-            </div>
             <div>
                 <button class="upload-button" type="submit" id="uploadButton">Upload</button>
             </div>
         </div>
     </form>
 
-    <script src="{{ url_for('static', filename='js/spinner.js') }}"></script>
     <script src="{{ url_for('static', filename='js/utils.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/spinner.js') }}"></script>
+
     <script>
     function updateDownloadLink(){
     if (idSelect.value){
         const selectedId = idSelect.value;
         downloadTemplate.classList.remove("disabled");
-        downloadTemplate.href = "{{ url_for('download_cpa_template') }}" + "?CpaPartId=" + selectedId.split('-')[0];
+        const cpaType = document.getElementById("Cpatype").value
+        const cpaCat = document.getElementById("Cpacat").value
+        downloadTemplate.href = "{{ url_for('download_cpa_template') }}" +
+            "?CpaPartId=" + selectedId.split('-')[0] +"&cpaType=" +cpaType + "&cpaCat=" +cpaCat;
         if (prefillSkuCheckbox.checked) {
                 downloadTemplate.href += "&prefill_sku=true";
             }
@@ -67,7 +88,84 @@
 
 prefillSkuCheckbox.addEventListener('click', updateDownloadLink);
 idSelect.addEventListener('change', updateDownloadLink)
+document.getElementById("Cpatype").addEventListener('change', updateDownloadLink)
+document.getElementById("Cpacat").addEventListener('change', updateDownloadLink)
+document.getElementById("Cpatype").disabled = true;
+document.getElementById("Cpacat").disabled = true;
 
+
+document.getElementById("CpaPartId").addEventListener("change", function () {
+    const selectedId = this.value;
+    document.getElementById("Cpatype").disabled = false;
+    spinner.style.display = 'block';
+
+    // Clear existing options from the other dropdowns
+
+    const typeDropdown = document.getElementById("Cpatype");
+    typeDropdown.innerHTML = '<option value="" disabled selected>Select Custom Part Type</option>';
+
+    if (selectedId) {
+        // Make an API call to fetch the new options
+        fetch('/get_type_values', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({ selected_id: selectedId })
+        })
+        .then(response => response.json())
+        .then(data => {
+
+            // Populate the term dropdown
+            data.types.forEach(term => {
+                const option = document.createElement("option");
+                option.value = term;
+                option.textContent = term;
+                typeDropdown.appendChild(option);
+            });
+        })
+        .catch(error => console.error("Error fetching dropdown values:", error))
+            .finally(()=>{
+                spinner.style.display = "none";
+            });
+    }
+});
+
+
+document.getElementById("Cpatype").addEventListener("change", function () {
+    const selectedId = this.value;
+    document.getElementById("Cpacat").disabled = false;
+     spinner.style.display = 'block';
+    // Clear existing options from the other dropdowns
+    const categoryDropdown = document.getElementById("Cpacat");
+    const PartId = document.getElementById("CpaPartId").value
+    categoryDropdown.innerHTML = '<option value="" disabled selected>Select Custom Part Category</option>';
+
+    if (selectedId) {
+        // Make an API call to fetch the new options
+        fetch('/get_category_values', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({ selected_id: selectedId, PartId: PartId })
+        })
+        .then(response => response.json())
+        .then(data => {
+            // Populate the term dropdown
+            data.categories.forEach(term => {
+                const option = document.createElement("option");
+                option.value = term;
+                option.textContent = term;
+                categoryDropdown.appendChild(option);
+            });
+        })
+        .catch(error => console.error("Error fetching dropdown values:", error))
+         .finally(()=>{
+                spinner.style.display = "none";
+            });
+    }
+});
     </script>
 
 {% endblock %}
