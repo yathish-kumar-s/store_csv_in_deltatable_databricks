@@ -1,12 +1,12 @@
 // JavaScript to handle form submission and display loading spinner
 const form = document.getElementById('uploadForm');
 const upload_spinner = document.getElementById('spinner');
-const uploadButton = document.getElementById('uploadButton');
+const CpauploadButton = document.getElementById('uploadButton');
 const download_cpa_template = document.getElementById('cpadownloadTemplateLink')
 
 form.addEventListener('submit', function () {
     upload_spinner.style.display = 'block'; // Show the spinner
-    uploadButton.disabled = true;    // Disable the button
+    CpauploadButton.disabled = true;    // Disable the button
 });
 
 
