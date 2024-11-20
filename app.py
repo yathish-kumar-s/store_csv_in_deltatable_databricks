@@ -1,11 +1,15 @@
 import os
+import uuid
+from urllib.parse import urlencode, quote_plus
+import flask_login
 import pandas as pd
 import logging
 from datetime import datetime
+from authlib.integrations.flask_client import OAuth
 from databricks.sdk import WorkspaceClient
 from dotenv import load_dotenv
-from flask import Flask, request, render_template, redirect, url_for, flash, send_file, jsonify, make_response
-
+from flask import Flask, request, render_template, redirect, url_for, flash, send_file, jsonify, make_response, session
+from flask_login import login_required, LoginManager
 from database_connector import db_connector
 from utils import read_csv_file, create_templates_df_csv_buffer, validate_good_better_best, get_csv_buffer, \
     create_templates_df_cpa, create_templates_df_cpa_prefilled_sku, validate_custom_part_attributes
@@ -15,6 +19,9 @@ load_dotenv()
 environment = 'prd'
 app = Flask(__name__)
 app.secret_key = os.getenv('APP_SECRET_KEY')
+
+login_manager = LoginManager()
+login_manager.init_app(app)
 
 GBB_NOTEBOOK_JOB = '528538988059648'
 CPA_NOTEBOOK_JOB = '55857284532359'
@@ -44,6 +51,11 @@ logger = logging.getLogger(__name__)
 # )
 
 
+class User(flask_login.UserMixin):
+    def __init__(self, user_id=None):
+        self.id = user_id
+
+
 w = WorkspaceClient(
   auth_type='pat',
   host=os.getenv('DATABRICKS_HOST'),
@@ -55,23 +67,81 @@ volume_catalog = 'uut'
 volume_schema = 'dbo'
 volume_name = 'vol_fileuploadutility'
 
-notebook = '/Workspace/Repos/PA/Databricks/analysis/create_table_form_csv_in_volumes'
+oauth = OAuth(app)
 
+oauth.register(
+    "auth0",
+    client_id=os.environ['CLIENT_ID'],
+    client_secret=os.environ['CLIENT_SECRET'],
+    client_kwargs={
+        "scope": "openid profile email",
+    },
+    server_metadata_url=f"https://{os.environ['ORG_URL']}/.well-known/openid-configuration"
+)
 
 
 @app.route('/')
 def homepage():
     return render_template('homepage.html')
 
+
+@login_manager.user_loader
+def load_user(user_id):
+    return User(user_id)
+
+
+@app.route("/login")
+def login():
+    return oauth.auth0.authorize_redirect(
+        redirect_uri=f"{os.environ['CALLBACK_URL']}/callback"
+    )
+
+
+@app.route("/callback", methods=["GET", "POST"])
+def callback():
+    token = oauth.auth0.authorize_access_token()
+    session["user"] = token
+    user_info = token.get('userinfo')
+    user_id = user_info.get('sub') if user_info else None
+    if not user_id:
+        return "Error: User ID not found", 400
+    user = User(user_id)
+    flask_login.login_user(user)
+    return redirect(url_for('homepage'))
+
+
+@app.route("/logout")
+@login_required
+def logout():
+    session.clear()
+    flask_login.logout_user()
+    return redirect(
+        "https://" + os.environ['ORG_URL']
+        + "/v2/logout?"
+        + urlencode(
+            {
+                "returnTo": os.environ['CALLBACK_URL'],
+                "client_id": os.environ['CLIENT_ID'],
+            },
+            quote_via=quote_plus,
+        )
+    )
+
+
 @app.route('/upload_form')
+@login_required
 def upload_form():
     return render_template('upload.html')
 
+
 @app.route('/upload_form_part_term')
+@login_required
 def upload_form_part_term():
     return render_template('upload_part_term.html')
 
+
 @app.route('/upload_form_cust_part_attr')
+@login_required
 def upload_form_cust_part_attr():
     try:
         with db_connector() as connection:
@@ -106,6 +176,7 @@ def upload_form_cust_part_attr():
 
 
 @app.route('/upload_csv', methods=['POST'])
+@login_required
 def upload_file():
     timestamp = datetime.now()
     volume_folder = f'apps/goodbetterbest/{timestamp.year}/{timestamp.month}'
@@ -124,7 +195,8 @@ def upload_file():
 
     if file and file.filename.endswith('.xlsx'):
         try:
-            filename = f'{file.filename[:-5]}.csv'
+            random_uuid = str(uuid.uuid4().int)[:5]
+            filename = f'{file.filename[:-5]}_{random_uuid}.csv'
             df = pd.read_excel(file)
             df = validate_good_better_best(df, required_columns, nullable_columns)
             csv_buffer = get_csv_buffer(df)
@@ -132,7 +204,7 @@ def upload_file():
             file_path_in_volume = f"/Volumes/{volume_catalog}/{volume_schema}/{volume_name}/{volume_folder}/{filename}"
             w.files.upload(file_path=file_path_in_volume, contents=csv_buffer, overwrite=True)
 
-            notebook_params = dict(file_name=filename)
+            notebook_params = dict(file_name=filename, uploader_email=session.get('user').get('userinfo')['email'])
             run_by_id = w.jobs.run_now(job_id=GBB_NOTEBOOK_JOB, notebook_params=notebook_params).result()
             run_results = w.jobs.get_run_output(run_id=run_by_id.tasks[0].run_id).notebook_output.result
 
@@ -154,6 +226,7 @@ def upload_file():
 
 
 @app.route('/upload_part_term', methods=['POST'])
+@login_required
 def upload_part_term():
 
     # cluster_state = w.clusters.get(cluster_id=os.getenv('CLUSTER_ID')).state.value
@@ -182,7 +255,8 @@ def upload_part_term():
 
     if file and file.filename.endswith('.xlsx'):
         try:
-            filename = f'{file.filename[:-5]}.csv'
+            random_uuid = str(uuid.uuid4().int)[:5]
+            filename = f'{file.filename[:-5]}_{random_uuid}.csv'
             csv_buffer = read_csv_file(file, required_columns, nullable_columns)
             file_path_in_volume = f"/Volumes/{volume_catalog}/{volume_schema}/{volume_name}/{volume_folder}/{filename}"
             w.files.upload(file_path=file_path_in_volume, contents=csv_buffer, overwrite=True)
@@ -202,7 +276,7 @@ def upload_part_term():
             #
             # )
 
-            notebook_params = dict(file_name=filename)
+            notebook_params = dict(file_name=filename,uploader_email=session.get('user').get('userinfo')['email'])
             run_by_id = w.jobs.run_now(job_id=PT_NOTEBOOK_JOB, notebook_params=notebook_params).result()
             run_results = w.jobs.get_run_output(run_id=run_by_id.tasks[0].run_id).notebook_output.result
 
@@ -226,6 +300,7 @@ def upload_part_term():
 
 
 @app.route('/upload_custom_part_attributes', methods=['POST'])
+@login_required
 def upload_custom_part_attributes():
     timestamp = datetime.now()
     volume_folder = f'apps/custompartattributes/{timestamp.year}/{timestamp.month}'
@@ -244,15 +319,15 @@ def upload_custom_part_attributes():
 
     if file and file.filename.endswith('.xlsx'):
         try:
-            filename = f'{file.filename[:-5]}.csv'
-
+            random_uuid = str(uuid.uuid4().int)[:5]
+            filename = f'{file.filename[:-5]}_{random_uuid}.csv'
             df = pd.read_excel(file)
             df = validate_custom_part_attributes(df, required_columns, nullable_columns)
             csv_buffer = get_csv_buffer(df)
             file_path_in_volume = f"/Volumes/{volume_catalog}/{volume_schema}/{volume_name}/{volume_folder}/{filename}"
             w.files.upload(file_path=file_path_in_volume, contents=csv_buffer, overwrite=True)
 
-            notebook_params = dict(file_name=filename)
+            notebook_params = dict(file_name=filename, uploader_email=session.get('user').get('userinfo')['email'])
 
             run_by_id = w.jobs.run_now(job_id=CPA_NOTEBOOK_JOB, notebook_params=notebook_params).result()
 
@@ -275,6 +350,7 @@ def upload_custom_part_attributes():
 
 
 @app.route('/download_gbb_template', methods=['GET'])
+@login_required
 def download_gbb_template():
     try:
         timestamp = datetime.now().strftime("%Y%m%d%H%M%S")
@@ -296,6 +372,7 @@ def download_gbb_template():
 
 
 @app.route('/download_cpa_template', methods=['GET'])
+@login_required
 def download_cpa_template():
     try:
         timestamp = datetime.now().strftime("%Y%m%d%H%M%S")
@@ -308,7 +385,7 @@ def download_cpa_template():
 
         with db_connector() as connection:
             with connection.cursor() as cursor:
-                query = f"SELECT partattributename FROM uut.dbo.custompartattributes WHERE parttermid = {part_id}"
+                query = f"SELECT partattributename FROM uut.dbo.custompartattributes_header WHERE parttermid = {part_id}"
                 results = cursor.execute(query).fetchall()
 
         columns = default_columns + [row.partattributename for row in results]
@@ -333,6 +410,7 @@ def download_cpa_template():
 
 
 @app.route('/get_type_values', methods=['POST'])
+@login_required
 def get_type_values():
     selected_id = request.json.get('selected_id')
 
@@ -340,7 +418,7 @@ def get_type_values():
 
     with db_connector() as connection:
         with connection.cursor() as cursor:
-            query = f"select distinct(partattributetype) from uut.dbo.custompartattributes where parttermid = {part_id}"
+            query = f"select distinct(partattributetype) from uut.dbo.custompartattributes_header where parttermid = {part_id}"
             results = cursor.execute(query).fetchall()
             values = {
                 "types": [types.partattributetype for types in results]
@@ -349,6 +427,7 @@ def get_type_values():
 
 
 @app.route('/get_category_values', methods=['POST'])
+@login_required
 def get_category_values():
 
     partattributetype = request.json.get('selected_id')
@@ -357,7 +436,7 @@ def get_category_values():
 
     with db_connector() as connection:
         with connection.cursor() as cursor:
-            query = (f"select distinct(partattributecategory) from uut.dbo.custompartattributes where"
+            query = (f"select distinct(partattributecategory) from uut.dbo.custompartattributes_header where"
                      f" parttermid = {TermID} and partattributetype = '{partattributetype}'")
             results = cursor.execute(query).fetchall()
 
@@ -366,6 +445,7 @@ def get_category_values():
     }
 
     return jsonify(values)
+
 
 
 if __name__ == '__main__':

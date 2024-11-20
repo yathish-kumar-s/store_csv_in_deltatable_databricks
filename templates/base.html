@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>{% block title %}CSV Uploader{% endblock %}</title>
+    <title>{% block title %}Files Uploader{% endblock %}</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='styles/styles.css') }}">
 </head>
 <body>
@@ -13,11 +13,20 @@
         <a href="{{ url_for('homepage') }}">
             <img src="/static/images/home.svg" alt="Home">
         </a>
-
     </div>
     <div class="header-logo">
         <img src="/static/images/pa_logo.svg" alt="Parts Authority Logo">
     </div>
+        {% if current_user.is_authenticated %}
+            <div class="header-login">
+                <a href="{{ url_for('logout') }}" class="logout-button">Logout</a>
+            </div>
+        {% else %}
+            <div class="header-login">
+                <a href="{{ url_for('login') }}" class="login-button">Login</a>
+            </div>
+        {% endif %}
+
 </header>
 
 <main>

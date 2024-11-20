@@ -329,3 +329,41 @@ input[type="file"] {
 .cpa-cat-dropdown-container:hover {
     border-color: #007bff;
 }
+
+/* General container styling for login/logout */
+.header-login {
+    display: flex;
+    justify-content: flex-end; /* Align to the right */
+    align-items: center;
+    padding: 10px 20px;
+}
+
+/* General button styles */
+.header-login a {
+    text-decoration: none;
+    font-size: 14px;
+    font-weight: bold;
+    padding: 8px 15px;
+    border-radius: 4px;
+    color: #fff; /* Text color */
+    transition: background-color 0.3s ease;
+}
+
+/* Style for login button */
+.header-login a.login-button {
+    background-color: #007bff; /* Blue color */
+}
+
+.header-login a.login-button:hover {
+    background-color: #0056b3; /* Darker blue on hover */
+}
+
+/* Style for logout button */
+.header-login a.logout-button {
+    background-color: #CE242A; /* Red color */
+}
+
+.header-login a.logout-button:hover {
+    background-color: #b02a37; /* Darker red on hover */
+}
+
