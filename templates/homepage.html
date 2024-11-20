@@ -29,6 +29,10 @@
         <div class="upload-section">
             <a href="{{ url_for('upload_form_cust_part_attr') }}">Custom Part Attributes</a>
         </div>
+
+        <div class="upload-section">
+            <a href="{{ url_for('upload_load_sku_list') }}">Load Sku List For Interchanges</a>
+        </div>
         {% else %}
             <div class="upload-section">
                 <a href="{{ url_for('login') }}">Log In</a>

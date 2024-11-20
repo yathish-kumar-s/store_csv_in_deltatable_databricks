@@ -127,6 +127,12 @@ def validate_custom_part_attributes(df, required_columns, nullable_columns):
     df = df.drop('is_valid', axis=1)
     return df
 
+
+def validate_load_sku_list(df, required_columns, nullable_columns):
+    validate_missing_columns(df, required_columns)
+    validate_null_columns(df, nullable_columns)
+
+
 def get_csv_buffer(df):
     """
      Converts a DataFrame into a CSV buffer.
@@ -202,8 +208,5 @@ def create_templates_df_cpa_prefilled_sku(default_columns,columns, part_id, cpa_
     csv_stream = io.BytesIO()
     df.to_excel(csv_stream, index=False)
     csv_stream.seek(0)
-
-    cursor.close()
-    connection.close()
     return csv_stream
 

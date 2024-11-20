@@ -1,0 +1,75 @@
+{% extends "base.html" %}
+
+{% block title %}Upload CSV - GoodBetterBest{% endblock %}
+
+{% block content %}
+    <div class="file-headings">
+        <h1>Load Sku List for Interchanges</h1>
+        <p class="file-details">Upload file details: linecode, partnumber</p>
+    </div>
+
+
+    {% with messages = get_flashed_messages(with_categories=true) %}
+      {% if messages %}
+        <ul class="flash-messages">
+          {% for category, message in messages %}
+            <li class="flash-message {{ category }}">{{ message }}</li>
+          {% endfor %}
+        </ul>
+      {% endif %}
+    {% endwith %}
+
+
+    <div class="loading-spinner" id="spinner">
+        <img src="/static/images/spinner.svg" alt="Loading...">
+    </div>
+
+    <form id="uploadForm" action="{{ url_for('upload_load_sku_list_for_interchanges') }}" method="POST" enctype="multipart/form-data">
+            <input class="file-input" type="file" name="file" accept=".xlsx" required>
+
+        <div class="buttons_container">
+            <div>
+                <button class="upload-button" type="submit" id="uploadButton">Upload</button>
+            </div>
+        </div>
+    </form>
+
+    <script src="{{ url_for('static', filename='js/spinner.js') }}"></script>
+    <script>
+    document.getElementById('uploadForm').addEventListener('submit', async function (e) {
+        e.preventDefault(); // Prevent default form submission
+
+        const form = e.target;
+        const formData = new FormData(form);
+
+        try {
+            // Submit form data using fetch
+            const response = await fetch(form.action, {
+                method: form.method,
+                body: formData,
+            });
+
+            if (response.ok) {
+                // Parse the response JSON or use appropriate logic
+                const blob = await response.blob();
+
+                // Trigger file download
+                const url = window.URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = "load_sku_" + new Date().toISOString().replace(/[-:T.Z]/g, '') + ".xlsx"; // Change as needed
+                a.click();
+                window.URL.revokeObjectURL(url);
+
+                // Redirect after download
+                window.location.href = "{{ url_for('upload_load_sku_list')  }}"; // Update with the desired redirect URL
+            } else {
+                alert('Upload failed. Please try again.');
+            }
+        } catch (err) {
+            console.error('Error:', err);
+            alert('An error occurred. Please try again.');
+        }
+    });
+</script>
+{% endblock %}

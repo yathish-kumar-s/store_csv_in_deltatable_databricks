@@ -1,3 +1,4 @@
+import io
 import os
 import uuid
 from urllib.parse import urlencode, quote_plus
@@ -12,7 +13,8 @@ from flask import Flask, request, render_template, redirect, url_for, flash, sen
 from flask_login import login_required, LoginManager
 from database_connector import db_connector
 from utils import read_csv_file, create_templates_df_csv_buffer, validate_good_better_best, get_csv_buffer, \
-    create_templates_df_cpa, create_templates_df_cpa_prefilled_sku, validate_custom_part_attributes
+    create_templates_df_cpa, create_templates_df_cpa_prefilled_sku, validate_custom_part_attributes, \
+    validate_load_sku_list
 
 load_dotenv()
 
@@ -138,6 +140,12 @@ def upload_form():
 @login_required
 def upload_form_part_term():
     return render_template('upload_part_term.html')
+
+
+@app.route('/upload_load_sku_list')
+@login_required
+def upload_load_sku_list():
+    return render_template('loadskulist_template.html')
 
 
 @app.route('/upload_form_cust_part_attr')
@@ -347,6 +355,95 @@ def upload_custom_part_attributes():
     else:
         flash('Invalid file format. Please upload a XLSX.', category='error')
         return redirect(url_for('upload_form_cust_part_attr'))
+
+
+@app.route('/upload_load_sku_list_for_interchanges', methods=['POST'])
+@login_required
+def upload_load_sku_list_for_interchanges():
+    timestamp = datetime.now()
+    required_columns = ['linecode', 'partnumber']
+    nullable_columns = []
+    if 'file' not in request.files:
+        flash('No file part', category='error')
+        return redirect(request.url)
+
+    file = request.files['file']
+
+    if file.filename == '':
+        flash('No selected file', category='error')
+        return redirect(request.url)
+
+    if file and file.filename.endswith('.xlsx'):
+        try:
+            random_uuid = str(uuid.uuid4().int)[:5]
+            filename = f'{file.filename[:-5]}_{random_uuid}.csv'
+            df = pd.read_excel(file)
+            validate_load_sku_list(df, required_columns, nullable_columns)
+
+            values_clause = ", ".join(
+                [f"({', '.join(map(repr, row))})" for row in df.values]
+            )
+
+            with db_connector() as connection:
+                with connection.cursor() as cursor:
+                    query = f"""
+                      WITH inline_table (linecode, partnumber) AS (
+                        VALUES{values_clause}
+                      )         
+                      SELECT 
+                        partterminologykey, gskuid,
+                        concat_ws(',', sku) AS oe_skus,
+                        interchangesku, InterchDeadNet,
+                        InterchQtySold, InterchSalesExtended
+                      FROM (
+                          SELECT
+                            iss.partterminologykey,
+                            gskuid,
+                            a.sku, a.interchangesku, 
+                            iss.unitcostdeadnet AS InterchDeadNet,
+                            demis.qtysold AS InterchQtySold,
+                            demis.sales AS InterchSalesExtended,
+                            row_number() OVER (partition BY a.interchangesku ORDER BY matchedapps DESC) AS rowkey
+                          FROM gsku.gold.gskulight a
+                          JOIN (
+                            SELECT
+                              REPLACE(REPLACE(REPLACE(REPLACE(CONCAT(linecode, partnumber), ' ', ''), '.', ''), '/', ''), '-', '') AS sku
+                              FROM inline_table
+                              ) b ON a.interchangesku = b.sku
+                          JOIN dst.gold.skumaster iss ON a.interchangesku = iss.sku
+                          JOIN (
+                              SELECT
+                                sku,
+                                SUM(qtysold) AS qtysold,
+                                SUM(salesextended) AS sales
+                              FROM dst.gold.demands
+                              GROUP BY sku
+                          ) demis ON a.interchangesku = demis.sku
+                      ) subquery  WHERE rowkey = 1 
+                    """
+                    rows = cursor.execute(query).fetchall()
+            data_dict = [row.asDict() for row in rows]
+            df = pd.DataFrame(data_dict)
+            data_stream = io.BytesIO()
+            df.to_excel(data_stream, index=False)
+            data_stream.seek(0)
+
+            flash('File uploaded and data inserted successfully!', category='success')
+            return send_file(
+                data_stream,
+                as_attachment=True,
+                download_name=f"load_sku_{timestamp}.xlsx",  # file name is taken care in loadskulist_template.html
+                mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+            )
+
+        except Exception as e:
+            flash(f'An error occurred: Please try again', category='error')
+            logger.exception(f'An error occurred: {str(e)}')
+            return redirect(url_for('upload_load_sku_list'))
+
+    else:
+        flash('Invalid file format. Please upload a XLSX.', category='error')
+        return redirect(url_for('upload_load_sku_list'))
 
 
 @app.route('/download_gbb_template', methods=['GET'])
