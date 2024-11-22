@@ -3,7 +3,7 @@
 {% block title %}Home - Files Uploader{% endblock %}
 
 {% block content %}
-    <h1>Welcome to the Files Uploader</h1>
+    <h1>File Uploader</h1>
     <p class="file-details">Click the buttons below to upload files.</p>
 
         {% with messages = get_flashed_messages(with_categories=true) %}
@@ -17,27 +17,27 @@
     {% endwith %}
 
     <div class="upload-container">
-    {% if current_user.is_authenticated %}
-        <div class="upload-section">
-            <a href="{{ url_for('upload_form') }}">Good, Better, Best</a>
-        </div>
-
-        <div class="upload-section">
-            <a href="{{ url_for('upload_form_part_term') }}">Part Term</a>
-        </div>
-
-        <div class="upload-section">
-            <a href="{{ url_for('upload_form_cust_part_attr') }}">Custom Part Attributes</a>
-        </div>
+{#    {% if current_user.is_authenticated %}#}
+{#        <div class="upload-section">#}
+{#            <a href="{{ url_for('upload_form') }}">Good, Better, Best</a>#}
+{#        </div>#}
+{##}
+{#        <div class="upload-section">#}
+{#            <a href="{{ url_for('upload_form_part_term') }}">Part Term</a>#}
+{#        </div>#}
+{##}
+{#        <div class="upload-section">#}
+{#            <a href="{{ url_for('upload_form_cust_part_attr') }}">Custom Part Attributes</a>#}
+{#        </div>#}
 
         <div class="upload-section">
             <a href="{{ url_for('upload_load_sku_list') }}">Load Sku List For Interchanges</a>
         </div>
-        {% else %}
-            <div class="upload-section">
-                <a href="{{ url_for('login') }}">Log In</a>
-            </div>
-        {% endif %}
+{#        {% else %}#}
+{#            <div class="upload-section">#}
+{#                <a href="{{ url_for('login') }}">Log In</a>#}
+{#            </div>#}
+{#        {% endif %}#}
 
     </div>
 {% endblock %}

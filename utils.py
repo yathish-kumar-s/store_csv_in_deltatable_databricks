@@ -128,9 +128,20 @@ def validate_custom_part_attributes(df, required_columns, nullable_columns):
     return df
 
 
-def validate_load_sku_list(df, required_columns, nullable_columns):
-    validate_missing_columns(df, required_columns)
-    validate_null_columns(df, nullable_columns)
+def validate_load_sku_list(df, required_columns, only_part_number):
+    df_columns = [col.lower() for col in df.columns]
+
+    missing_columns = [col for col in required_columns if col.lower() not in df_columns]
+
+    if missing_columns:
+        if only_part_number and 'partnumber' in missing_columns:
+            flash(f"Missing columns: {', '.join(missing_columns)}", category='error')
+            raise ValueError(f"Missing columns: {', '.join(missing_columns)}")
+        if 'sku' in df_columns:
+            return
+        flash(f"Missing columns: {', '.join(missing_columns)}", category='error')
+        raise ValueError(f"Missing columns: {', '.join(missing_columns)}")
+    # validate_null_columns(df, nullable_columns)
 
 
 def get_csv_buffer(df):

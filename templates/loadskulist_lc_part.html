@@ -1,0 +1,213 @@
+{% extends "base.html" %}
+
+{% block title %}Upload Files{% endblock %}
+
+{% block content %}
+    <div class="file-headings">
+        <h1>Load Sku List for Interchanges</h1>
+        {% if upload_type == 'linecode_partnumber' %}
+            <p class="file-details">With linecode And PartNumber</p>
+        {% elif upload_type == 'partnumber_only' %}
+            <p class="file-details">With PartNumber Only</p>
+        {% elif upload_type == 'sku'%}
+            <p class="file-details">With SKU (linecode+PartNumber) Only</p>
+        {% endif %}
+
+    </div>
+
+
+    {% with messages = get_flashed_messages(with_categories=true) %}
+      {% if messages %}
+        <ul class="flash-messages">
+          {% for category, message in messages %}
+            <li class="flash-message {{ category }}">{{ message }}</li>
+          {% endfor %}
+        </ul>
+      {% endif %}
+    {% endwith %}
+
+
+    <div class="loading-spinner" id="spinner">
+        <img src="/static/images/spinner.svg" alt="Loading...">
+    </div>
+
+    {% if upload_type == 'linecode_partnumber' %}
+
+        <form id="uploadForm" action="{{ url_for('upload_load_sku_list_for_interchanges') }}" method="POST" enctype="multipart/form-data">
+            <input class="file-input" type="file" name="file" accept=".xlsx" required>
+
+            <div class="loadsku-dropdown-container">
+                 <select class="loadsku-dropdown" id="loadsku_linecode" name="linecode_column">
+                    <option value="" disabled selected>Select LineCode column</option>
+                    {% for id in id_list %}
+                        <option value="{{ id }}">{{ id }}</option>
+                    {% endfor %}
+                </select>
+
+                <select class="loadsku-dropdown" id="loadsku_partnumber" name="partnumber_column">
+                        <option value="" disabled selected>Select PartNumber column</option>
+                        {% for id in id_list %}
+                            <option value="{{ id }}">{{ id }}</option>
+                        {% endfor %}
+                    </select>
+            </div>
+            <div class="buttons_container">
+                <div>
+                    <button class="upload-button" type="submit" id="uploadButton">Upload</button>
+                </div>
+            </div>
+        </form>
+    {% elif  upload_type == 'partnumber_only' %}
+
+        <form id="uploadForm" action="{{ url_for('upload_load_sku_list_for_interchanges') }}" method="POST" enctype="multipart/form-data">
+            <input class="file-input" type="file" name="file" accept=".xlsx" required>
+
+            <select class="loadsku-dropdown" id="loadsku_partnumber" name="partnumber_column">
+                <option value="" disabled selected>Select PartNumber column</option>
+                {% for id in id_list %}
+                    <option value="{{ id }}">{{ id }}</option>
+                {% endfor %}
+            </select>
+
+            <!-- Hidden select box -->
+            <select name="load_sku" hidden>
+                <option value="true" selected></option>
+            </select>
+
+            <div class="buttons_container">
+                <div>
+                    <button class="upload-button" type="submit" id="uploadButton">Upload</button>
+                </div>
+            </div>
+        </form>
+
+    {% elif upload_type == 'sku' %}
+
+        <form id="uploadForm" action="{{ url_for('upload_load_sku_list_for_interchanges') }}" method="POST" enctype="multipart/form-data">
+            <input class="file-input" type="file" name="file" accept=".xlsx" required>
+
+             <select class="loadsku-dropdown" id="loadsku_sku" name="sku_column">
+                <option value="" disabled selected>Select SKU column</option>
+                {% for id in id_list %}
+                    <option value="{{ id }}">{{ id }}</option>
+                {% endfor %}
+            </select>
+
+            <div class="buttons_container">
+                <div>
+                    <button class="upload-button" type="submit" id="uploadButton">Upload</button>
+                </div>
+            </div>
+        </form>
+
+    {% endif %}
+
+    <script src="{{ url_for('static', filename='js/spinner.js') }}"></script>
+    <script>
+document.getElementById('uploadForm').addEventListener('submit', async function (e) {
+    e.preventDefault(); // Prevent default form submission
+
+    const queryString = window.location.search;
+    const urlParams = new URLSearchParams(queryString);
+    const upload_type = new URLSearchParams(urlParams);
+
+    const form = e.target;
+    const formData = new FormData(form);
+    const spinner = document.getElementById('spinner'); // Spinner element
+    const submitButton = document.getElementById('uploadButton'); // Submit button
+
+    // Show the spinner and disable the button to prevent duplicate submissions
+    spinner.style.display = "block";
+    submitButton.disabled = true;
+
+    try {
+        // Submit form data using fetch
+        const response = await fetch(form.action, {
+            method: form.method,
+            body: formData,
+        });
+
+        if (response.ok) {
+            const contentType = response.headers.get('Content-Type');
+
+            if (contentType.includes('application/json')) {
+                const data = await response.json();
+
+                if (data.status === 'error') {
+                    window.location.href = "{{ url_for('load_sku_options',upload_type=upload_type) }}"; // Show the error message
+                } else {
+                    // Success logic for JSON response
+                    alert('Operation completed successfully.');
+                    window.location.href = "{{ url_for('load_sku_options', upload_type=upload_type) }}"; // Redirect
+                }
+            } else {
+                // Handle file download for non-JSON responses
+                const blob = await response.blob();
+
+                const url = window.URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = "load_sku_" + new Date().toISOString().replace(/[-:T.Z]/g, '') + ".xlsx"; // Change as needed
+                a.click();
+                window.URL.revokeObjectURL(url);
+
+                // Redirect after download
+                window.location.href = "{{ url_for('load_sku_options', upload_type=upload_type) }}"; // Update with the desired redirect URL
+            }
+        } else {
+            // If the response is not OK (e.g., 4xx or 5xx)
+            alert('Upload failed. Please try again.');
+        }
+    } catch (err) {
+        console.error('Error:', err);
+        {#alert('An error occurred. Please try again.');#}
+    } finally {
+        spinner.style.display = "none"; // Hide the spinner
+        submitButton.disabled = false; // Re-enable the button
+    }
+});
+
+
+document.querySelector('.file-input').addEventListener('change', function () {
+        const fileInput = this;
+        const file = fileInput.files[0];
+
+        if (file) {
+            const formData = new FormData();
+            formData.append('file', file);
+
+            // Call backend API to fetch columns
+            fetch('/fetch_columns', {
+                method: 'POST',
+                body: formData,
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.columns) {
+                    populateDropdown('loadsku_linecode', data.columns, 'Select LineCode Column');
+                    populateDropdown('loadsku_partnumber', data.columns, 'Select PartNumber Column');
+                    populateDropdown('loadsku_sku', data.columns, 'Select SKU Column');
+                } else {
+                    alert('Failed to fetch columns.');
+                }
+            })
+            .catch(error => console.error('Error:', error));
+        }
+    });
+
+    function populateDropdown(dropdownId, columns, description) {
+        const dropdown = document.getElementById(dropdownId);
+        if (!dropdown) {
+            return; // Exit the function if dropdown is null or undefined
+        }
+        dropdown.innerHTML = `<option value="" disabled selected>${description}</option>`;
+        columns.forEach(column => {
+            const option = document.createElement('option');
+            option.value = column;
+            option.textContent = column;
+            dropdown.appendChild(option);
+        });
+    }
+</script>
+
+{% endblock %}

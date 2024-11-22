@@ -330,6 +330,39 @@ input[type="file"] {
     border-color: #007bff;
 }
 
+.loadsku-dropdown-container {
+    display: flex;
+    gap: 1rem; /* Space between dropdowns */
+    width: 100%; /* Adjust width as needed */
+}
+
+.loadsku-dropdown {
+    width: 100%;
+    padding: 10px;
+    border: 1px solid #ccc;
+    border-radius: 5px;
+    font-size: 14px;
+    background-color: #fff;
+    cursor: pointer;
+    transition: border-color 0.3s, box-shadow 0.3s;
+}
+
+.loadsku-dropdown:focus {
+    border-color: #007bff;
+    box-shadow: 0 0 5px rgba(0, 123, 255, 0.5);
+    outline: none;
+}
+
+.loadsku-dropdown option {
+    padding: 5px;
+    font-size: 14px;
+}
+
+/* Optional: Style the container to look better on hover */
+.loadsku-dropdown-container:hover {
+    border-color: #007bff;
+}
+
 /* General container styling for login/logout */
 .header-login {
     display: flex;
@@ -367,3 +400,8 @@ input[type="file"] {
     background-color: #b02a37; /* Darker red on hover */
 }
 
+.loadsku-checkbox-container{
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}

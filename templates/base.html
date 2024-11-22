@@ -17,15 +17,15 @@
     <div class="header-logo">
         <img src="/static/images/pa_logo.svg" alt="Parts Authority Logo">
     </div>
-        {% if current_user.is_authenticated %}
-            <div class="header-login">
-                <a href="{{ url_for('logout') }}" class="logout-button">Logout</a>
-            </div>
-        {% else %}
-            <div class="header-login">
-                <a href="{{ url_for('login') }}" class="login-button">Login</a>
-            </div>
-        {% endif %}
+{#        {% if current_user.is_authenticated %}#}
+{#            <div class="header-login">#}
+{#                <a href="{{ url_for('logout') }}" class="logout-button">Logout</a>#}
+{#            </div>#}
+{#        {% else %}#}
+{#            <div class="header-login">#}
+{#                <a href="{{ url_for('login') }}" class="login-button">Login</a>#}
+{#            </div>#}
+{#        {% endif %}#}
 
 </header>
 
