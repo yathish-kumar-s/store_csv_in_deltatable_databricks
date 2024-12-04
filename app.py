@@ -15,10 +15,10 @@ from dotenv import load_dotenv
 from flask import Flask, request, render_template, redirect, url_for, flash, send_file, jsonify, make_response, session
 from flask_login import login_required, LoginManager
 from database_connector import db_connector
-from upload_controllers import cpa_uploader
+from upload_controllers import cpa_uploader, part_term_uploader, gbb_uploader
 from utils import read_csv_file, create_templates_df_csv_buffer, validate_good_better_best, get_csv_buffer, \
     create_templates_df_cpa, create_templates_df_cpa_prefilled_sku, validate_custom_part_attributes, \
-    validate_load_sku_list
+    validate_load_sku_list, write_large_dataset_to_excel
 
 load_dotenv()
 
@@ -34,11 +34,11 @@ CPA_NOTEBOOK_JOB = '55857284532359'
 PT_NOTEBOOK_JOB = '440371801732973'
 
 
-logging.basicConfig(
-    filename='app.log',
-    level=logging.INFO,
-    format='%(asctime)s %(levelname)s: %(message)s [in %(pathname)s:%(lineno)d]'
-)
+# logging.basicConfig(
+#     filename='app.log',
+#     level=logging.INFO,
+#     format='%(asctime)s %(levelname)s: %(message)s [in %(pathname)s:%(lineno)d]'
+# )
 
 logger = logging.getLogger(__name__)
 
@@ -162,6 +162,12 @@ def load_sku_options():
         return render_template('loadskulist_lc_part.html', upload_type=upload_type)
     elif upload_type == 'partnumber_only':
         return render_template('loadskulist_lc_part.html', upload_type=upload_type)
+    elif upload_type == 'partnumber_only_with_filters':
+        checkbox_options = ["9B", "9S", "9T", "A1", "A8", "AC", "AE", "AK", "AQ", "AU", "AZ", "B0", "BA",
+                            "BD", "BF","9B", "9S", "9T", "A1", "A8", "AC", "AE", "AK", "AQ", "AU", "AZ",
+                            "B0", "BA", "BD", "BF","9B", "9S", "9T", "A1", "A8", "AC", "AE", "AK", "AQ",
+                            "AU", "AZ", "B0", "BA", "BD", "BF"]
+        return render_template('loadskulist_lc_part.html', upload_type=upload_type,  options=checkbox_options)
 
 
 @app.route('/upload_form_cust_part_attr')
@@ -229,15 +235,17 @@ def upload_file():
             file_path_in_volume = f"/Volumes/{volume_catalog}/{volume_schema}/{volume_name}/{volume_folder}/{filename}"
             w.files.upload(file_path=file_path_in_volume, contents=csv_buffer, overwrite=True)
 
-            notebook_params = dict(
-                file_name=filename
-                # ,uploader_email=session.get('user').get('userinfo')['email']
-            )
-            run_by_id = w.jobs.run_now(job_id=GBB_NOTEBOOK_JOB, notebook_params=notebook_params).result()
-            run_results = w.jobs.get_run_output(run_id=run_by_id.tasks[0].run_id).notebook_output.result
+            gbb_uploader(file, file_path_in_volume)
 
-            if run_results and 'Error' in run_results:
-                raise Exception(run_results)
+            # notebook_params = dict(
+            #     file_name=filename
+            #     # ,uploader_email=session.get('user').get('userinfo')['email']
+            # )
+            # run_by_id = w.jobs.run_now(job_id=GBB_NOTEBOOK_JOB, notebook_params=notebook_params).result()
+            # run_results = w.jobs.get_run_output(run_id=run_by_id.tasks[0].run_id).notebook_output.result
+            #
+            # if run_results and 'Error' in run_results:
+            #     raise Exception(run_results)
 
             flash('File uploaded and data inserted successfully!', category='success')
             return redirect(url_for('upload_form'))
@@ -303,16 +311,17 @@ def upload_part_term():
             #     ]
             #
             # )
+            part_term_uploader(file, file_path_in_volume)
 
-            notebook_params = dict(
-                file_name=filename
-                # ,uploader_email=session.get('user').get('userinfo')['email']
-            )
-            run_by_id = w.jobs.run_now(job_id=PT_NOTEBOOK_JOB, notebook_params=notebook_params).result()
-            run_results = w.jobs.get_run_output(run_id=run_by_id.tasks[0].run_id).notebook_output.result
-
-            if run_results and 'Error' in run_results:
-                raise Exception(run_results)
+            # notebook_params = dict(
+            #     file_name=filename
+            #     # ,uploader_email=session.get('user').get('userinfo')['email']
+            # )
+            # run_by_id = w.jobs.run_now(job_id=PT_NOTEBOOK_JOB, notebook_params=notebook_params).result()
+            # run_results = w.jobs.get_run_output(run_id=run_by_id.tasks[0].run_id).notebook_output.result
+            #
+            # if run_results and 'Error' in run_results:
+            #     raise Exception(run_results)
 
             flash('File uploaded and data inserted successfully!', category='success')
 
@@ -398,9 +407,25 @@ def upload_load_sku_list_for_interchanges():
     only_part_number = False
     required_columns = ['linecode', 'partnumber']
 
+    if request.form.get('filter_by'):
+        filter_column = request.form.get('filter_by')
+        filter_data = request.form.getlist('lsku-filter-by-data')
+
+
     if load_sku and load_sku == 'true':
         only_part_number = True
         required_columns = ['partnumber']
+
+    initial_column = []
+
+    if line_code_column and part_number_column:
+        initial_column = ['`linecode`', '`partnumber`']
+
+    elif sku_column:
+        initial_column = ['`sku`']
+    elif only_part_number:
+        initial_column = ['`partnumber`']
+
 
     timestamp = datetime.now()
     if 'file' not in request.files:
@@ -417,196 +442,307 @@ def upload_load_sku_list_for_interchanges():
         try:
             df = pd.read_excel(file)
             if line_code_column:
+                if 'linecode' in df.columns and line_code_column!='linecode':
+                    df.rename(columns={'linecode': 'orig_linecode'}, inplace=True)
                 df.rename(columns={line_code_column: 'linecode'}, inplace=True)
             if part_number_column:
+                if 'partnumber' in df.columns and part_number_column != 'partnumber':
+                    df.rename(columns={'partnumber': 'orig_partnumber'}, inplace=True)
                 df.rename(columns={part_number_column: 'partnumber'}, inplace=True)
             if sku_column:
+                if 'sku' in df.columns and part_number_column and part_number_column != 'sku':
+                    df.rename(columns={'sku': 'orig_sku'}, inplace=True)
+                if not line_code_column and not part_number_column:
+                    required_columns = ['sku']
                 df.rename(columns={sku_column: 'sku'}, inplace=True)
             df = df.fillna('')
             validate_load_sku_list(df, required_columns, only_part_number)
 
             if not only_part_number:
 
-                if 'sku' in df.columns:
+                if 'sku' in df.columns and sku_column:
+                    inline_table_alias = 'b'
                     values_clause = ", ".join(
                         [f"({', '.join(map(repr, row))})" for row in df.values]
                     )
-                    cols = df.columns
-                    columns_clause = ", ".join(cols)
-                    li = [f"b.{col}"
-                        for col in df.columns
-                    ]
-                    inner_column_clause = ", ".join(li)
-                else:
-                    df['sku'] = (df['linecode'] + df['partnumber']).replace(r'[^a-zA-Z0-9]', '', regex=True)
-                    # values_clause = ", ".join(
-                    #     [
-                    #         f"""('{"".join(map(str, row))}')"""
-                    #         for row in df.map(
-                    #         lambda x: x.replace(' ', '').replace('.', '').replace('/', '').replace('-', '')
-                    #     ).values
-                    #     ]
-                    # )
-                    values_clause = ", ".join(
-                        [f"({', '.join(map(repr, row))})" for row in df.values]
-                    )
-
                     column_clause_list = [f"`{col}`" for col in df.columns]
                     columns_clause = ", ".join(column_clause_list)
+                    columns_clause_2_list = [col for col in column_clause_list if (col not in initial_column) and (col != '`sku`')]
+                    columns_clause_2 = ", ".join(columns_clause_2_list)
+                    columns_clause_2 += ',' if columns_clause_2_list else ''
+                    initial_column_clause = ", ".join(initial_column)
+                    initial_column_clause += ',' if initial_column else ''
                     inner_column_clause_list = [f"`b`.`{col}`" for col in df.columns]
                     inner_column_clause = ", ".join(inner_column_clause_list)
+                    inner_column_clause += ',' if inner_column_clause_list else ''
+                else:
+                    inline_table_alias = 'b'
+                    df['sku'] = (df['linecode'] + df['partnumber']).replace(r'[^a-zA-Z0-9]', '', regex=True)
+                    values_clause = ", ".join(
+                        [f"({', '.join(map(repr, row))})" for row in df.values]
+                    )
+                    column_clause_list = [f"`{col}`" for col in df.columns]
+                    columns_clause = ", ".join(column_clause_list)
+                    columns_clause_2_list = [col for col in column_clause_list if (col not in initial_column) and (col != '`sku`')]
+                    columns_clause_2 = ", ".join(columns_clause_2_list)
+                    columns_clause_2 += ',' if columns_clause_2_list else ''
+                    initial_column_clause = ", ".join(initial_column)
+                    initial_column_clause += ',' if initial_column else ''
+                    inner_column_clause_list = [f"`b`.`{col}`" for col in df.columns]
+                    inner_column_clause = ", ".join(inner_column_clause_list)
+                    inner_column_clause += ',' if inner_column_clause_list else ''
 
-
-                query = f"""
-                          WITH inline_table ({columns_clause}) AS (
-                                VALUES{values_clause})        
-                          SELECT
-                            {columns_clause},
-                            iss_partterminologykey as partterminologykey, 
-                            gskuid_gskulight as gskuid,
-                            --a.gskuid,
-                            concat_ws(',',sku_gskulight) AS oe_skus,
-                            interchangesku_gskulight as interchangesku, InterchDeadNet,
-                            InterchQtySold, InterchSalesExtended
-                          FROM (
-                              SELECT {inner_column_clause},
-                                iss.partterminologykey as iss_partterminologykey,
-                                a.gskuid AS gskuid_gskulight,
-                                a.sku as sku_gskulight,
-                                 a.interchangesku as interchangesku_gskulight,
-                                iss.unitcostdeadnet AS InterchDeadNet,
-                                demis.qtysold AS InterchQtySold,
-                                demis.sales AS InterchSalesExtended,
-                                row_number() OVER (partition BY a.interchangesku ORDER BY matchedapps DESC) AS rowkey
-                              FROM gsku.gold.gskulight a
-                              JOIN inline_table b ON a.interchangesku = b.sku
-                              JOIN dst.gold.skumaster iss ON a.interchangesku = iss.sku
-                              JOIN (
-                                  SELECT
-                                    sku,
-                                    SUM(qtysold) AS qtysold,
-                                    SUM(salesextended) AS sales
-                                  FROM dst.gold.demands
-                                  GROUP BY sku
-                              ) demis ON a.interchangesku = demis.sku
-                          ) subquery  WHERE rowkey = 1
+                with db_connector() as connection:
+                    with connection.cursor() as cursor:
+                        fetch_query = f"""
+                        select query from uut.dbo.apps_query_table
+                        where app_name = 'load_sku_for_interchanges' and name='sku_only'
                         """
+                        rows = cursor.execute(fetch_query).fetchone()[0]
+
+                        query = rows.format(
+                            columns_clause=columns_clause,
+                            values_clause=values_clause,
+                            initial_column_clause=initial_column_clause,
+                            columns_clause_2=columns_clause_2,
+                            inner_column_clause=inner_column_clause,
+                            inline_table_alias=inline_table_alias
+                        )
+
+
+#                 query = f"""
+#                       WITH inline_table ({columns_clause}) AS (
+#                             VALUES{values_clause})
+#                       SELECT
+#                             {initial_column_clause}
+#                             a_sku as sku,
+#                             a_interchangesku as interchangesku,
+#                             iss_InterchDeadNet as InterchDeadNet,
+#                             gbb_description as gbbdescription,
+#                             {columns_clause_2}
+#                             iss_partterminologykey as partterminologykey,
+#                             family_gskuid as familygskuid,
+#                             gsku_id as gskuid,
+#                             oh_qty as  SupStk,
+#                             Sup_Hist as SupHist,
+#                             Internet_Qty_Sold as InternetQtySold,
+#                             Bulls_Eye as BullsEye,
+#                             PBE_Qty_Sold as PBEQtySold,
+#                             LineCode_key as LineCodekey,
+#                             Product_GroupKey as ProductGroupKey,
+#                             Car_line as Carline,
+#                             oh_ext_abc as OnHandExtAbc,
+#                             SupHist_Sales_Extended as SupHistSalesExtended,
+#                             Internet_Sales_Extended as InternetSalesExtended,
+#                             BESales_Extended as BESalesExtended,
+#                             PBE_Sales_Extended as PBESalesExtended,
+#                             a_groupnumber as groupnumber
+#                         FROM (
+#                             SELECT
+#                                 {inner_column_clause}
+#                                 iss.partterminologykey as iss_partterminologykey,
+#                                 a.groupnumber as a_groupnumber,
+#                                 a.sku as a_sku,
+#                                 a.interchangesku as a_interchangesku,
+#                                 a.gbbdescription as gbb_description,
+#                                 interchangesource as inter_change_source,
+# --                                 groupnumber as group_number,
+#                                 intergroupnumber as inter_group_number,
+#                                 groupid AS gsku_id,
+#                                 a.familygskuid as family_gskuid,
+#                                 iss.unitcostdeadnet AS iss_InterchDeadNet,
+#                                 demis.SupHist as Sup_Hist,
+#                                  demis.InternetQtySold as Internet_Qty_Sold,
+#                                  demis.BullsEye as Bulls_Eye,
+#                                  demis.PBEQtySold as PBE_Qty_Sold,
+#                                  iss.LineCodekey as LineCode_key,
+#                                  iss.ProductGroupKey as Product_GroupKey,
+#                                  iss.Carline as Car_line,
+#                                demis.SupHistSalesExtended as SupHist_Sales_Extended,
+#                                demis.InternetSalesExtended as Internet_Sales_Extended,
+#                                demis.BESalesExtended as BESales_Extended,
+#                                demis.PBESalesExtended as PBE_Sales_Extended,
+#                                ohqty as oh_qty,
+#                                ohextabc as oh_ext_abc
+#                             FROM catalogdata.gold.interchangelookupcurated a
+#                             JOIN inline_table  {inline_table_alias} ON a.sku = {inline_table_alias}.sku
+#                             JOIN dst.gold.skumaster iss ON a.interchangesku = iss.sku
+#                             JOIN (
+#                                 SELECT
+#                                     sku,
+#                                     suphist,
+#                                     suphistsalesextended,
+#                                     purebullseyeqtysold AS PBEQtySold,
+#                                     purebullseyesalesextended AS PBESalesExtended,
+#                                     internetqtysold,
+#                                     internetsalesextended,
+#                                     (suphist - internetqtysold) AS BullsEye,
+#                                     (suphistsalesextended - internetsalesextended) AS BESalesExtended
+#                                 FROM dst.gold.vwdemands_pivot
+#                                 GROUP BY sku, suphist, suphistsalesextended, purebullseyeqtysold, purebullseyesalesextended, internetqtysold, internetsalesextended
+#                             ) demis ON a.interchangesku = demis.sku
+#                             join (select a.sku ,sum(onhandquantity) ohqty,sum(onhandextended) ohextabc from dst.gold.invsummary a  where sbran<>888
+#                             group by a.sku ) inv on a.interchangesku = inv.sku
+#                          ) subquery
+#                          order by a_sku asc, Sup_Hist desc
+#                          """
             else:
-                df['partnumber_cleansed'] = df['partnumber'].str.replace(r'[^a-zA-Z0-9]', '', regex=True)
+                clean_column = 'partnumber_cleansed'
+                inline_table_alias = 'b'
+                df[f'{clean_column}'] = df['partnumber'].astype(str).str.replace(r'[^a-zA-Z0-9]', '', regex=True)
                 values_clause = ", ".join(
                     [f"({', '.join(map(repr, row))})" for row in df.values]
                 )
 
                 column_clause_list = [f"`{col}`" for col in df.columns]
                 columns_clause = ", ".join(column_clause_list)
-                inner_column_clause_list = [f"`b`.`{col}`" for col in df.columns]
+                columns_clause_2_list = [col for col in column_clause_list if col not in initial_column]
+                columns_clause_2_list.remove(f'`{clean_column}`')
+                columns_clause_2 = ", ".join(columns_clause_2_list)
+                columns_clause_2 += ',' if columns_clause_2_list else ''
+                initial_column_clause = ", ".join(initial_column)
+                initial_column_clause += ',' if initial_column else ''
+                inner_column_clause_list = [f"`{inline_table_alias}`.`{col}`" for col in df.columns]
                 inner_column_clause = ", ".join(inner_column_clause_list)
+                inner_column_clause += ',' if inner_column_clause_list else ''
 
-                query = f"""
-                          WITH inline_table ({columns_clause}) AS (
-                                VALUES{values_clause})        
-                           SELECT {columns_clause},
-                                PTK as partterminologykey,
-                                FGSKUID as familygskuid,
-                                a_gskuid as gskuid,
-                                subquery.a_sku as sku,
-                                subquery.partnumber,
-                                ICSKU as interchangesku,
-                                InterchDeadNet,
-                                GBBD as gbbdescription,
-                                ohqty SupStk,
-                                SupHist,
-                                InternetQtySold,
-                                BullsEye,
-                                PBEQtySold,
-                                LineCodekey,
-                                ProductGroupKey,
-                                Carline,
-                                ohextabc OnHandExtAbc,
-                                SupHistSalesExtended,
-                                InternetSalesExtended,
-                                BESalesExtended,
-                                PBESalesExtended,
-                                GN as groupnumber
-                            FROM (
-                                SELECT {inner_column_clause}, 
-                                    iss.partterminologykey as PTK,
-                                    a.groupnumber as GN,
-                                    a.sku as a_sku,
-                                    a.interchangesku as ICSKU,
-                                    gbbdescription as GBBD,
-                                    interchangesource as ICSRC,
-                                    groupnumber,
-                                    intergroupnumber as IGN,
-                                    groupid AS a_gskuid,
-                                    familygskuid as FGSKUID,
-                                    iss.unitcostdeadnet AS InterchDeadNet,
-                                    SupHist,
-                                     InternetQtySold,
-                                      BullsEye,
-                                       PBEQtySold,
-                                    LineCodekey,
-                                    ProductGroupKey,
-                                    Carline,
-                                   SupHistSalesExtended,
-                                    InternetSalesExtended,
-                                    BESalesExtended ,
-                                     PBESalesExtended,
-                                     ohqty,
-                                     ohextabc 
-                                FROM catalogdata.gold.interchangelookupcurated a  
-                                JOIN inline_table  b ON a.udfpn = b.partnumber_cleansed
-                                JOIN dst.gold.skumaster iss ON a.interchangesku = iss.sku
-                                JOIN (
-                                    SELECT
-                                        sku,
-                                        suphist,
-                                        suphistsalesextended,
-                                        purebullseyeqtysold AS PBEQtySold,
-                                        purebullseyesalesextended AS PBESalesExtended,
-                                        internetqtysold,
-                                        internetsalesextended,
-                                        (suphist - internetqtysold) AS BullsEye,
-                                        (suphistsalesextended - internetsalesextended) AS BESalesExtended
-                                    FROM dst.gold.vwdemands_pivot
-                                    GROUP BY sku, suphist, suphistsalesextended,
-                                     purebullseyeqtysold, purebullseyesalesextended,
-                                      internetqtysold, internetsalesextended
-                                ) demis ON a.interchangesku = demis.sku
-                                join (select a.sku ,sum(onhandquantity) 
-                                ohqty,sum(onhandextended) ohextabc from 
-                                dst.gold.invsummary a  where sbran<>888 
-                                group by a.sku ) inv on a.interchangesku = inv.sku
-                             ) subquery  
-                        """
+
+                if not request.form.get('filter_by'):
+                    with db_connector() as connection:
+                        with connection.cursor() as cursor:
+                            fetch_query = f"""
+                                select query from uut.dbo.apps_query_table
+                                where app_name = 'load_sku_for_interchanges' and name='partnumber_only'
+                            """
+                            rows = cursor.execute(fetch_query).fetchone()[0]
+
+                            query = rows.format(
+                                columns_clause=columns_clause,
+                                values_clause=values_clause,
+                                initial_column_clause=initial_column_clause,
+                                columns_clause_2=columns_clause_2,
+                                inner_column_clause=inner_column_clause,
+                                inline_table_alias=inline_table_alias,
+                                clean_column=clean_column
+                            )
+                else:
+                    filter_clause = "','".join(filter_data)
+                    with db_connector() as connection:
+                        with connection.cursor() as cursor:
+                            fetch_query = f"""
+                                select query from uut.dbo.apps_query_table
+                                where app_name = 'load_sku_for_interchanges' and name='partnumber_only_with_filter'
+                            """
+                            rows = cursor.execute(fetch_query).fetchone()[0]
+
+                            query = rows.format(
+                                columns_clause=columns_clause,
+                                values_clause=values_clause,
+                                initial_column_clause=initial_column_clause,
+                                columns_clause_2=columns_clause_2,
+                                inner_column_clause=inner_column_clause,
+                                inline_table_alias=inline_table_alias,
+                                clean_column=clean_column,
+                                filter_clause=filter_clause,
+                                filter_column=filter_column
+                            )
+#                 query = f"""
+#                           WITH inline_table ({columns_clause}) AS (
+#                                 VALUES{values_clause})
+#                            SELECT {initial_column_clause}
+#                                 subquery.a_sku as sku,
+#                                 ICSKU as interchangesku,
+#                                 IDN as InterchDeadNet,
+#                                 GBBD as gbbdescription,
+#                                 {columns_clause_2}
+#                                 Line_Code as LineCode,
+#                                 PTK as partterminologykey,
+#                                 PTName as partterminologyname,
+#                                 FGSKUID as familygskuid,
+#                                 a_gskuid as gskuid,
+# --                                 subquery.partnumber,
+#                                 oh_qty as SupStk,
+#                                 SH as SupHist,
+#                                 IQSD as InternetQtySold,
+#                                 BUEYE as BullsEye,
+#                                 PBEQSD as PBEQtySold,
+#                                 ISS_LCK as LineCodekey,
+#                                 ISS_PGKY as ProductGroupKey,
+#                                 CANE as Carline,
+#                                 oh_ext_abc as  OnHandExtAbc,
+#                                 SHSEDD as SupHistSalesExtended,
+#                                 D_ISEDD as InternetSalesExtended,
+#                                 BESEDD as BESalesExtended,
+#                                 PBSEDD as PBESalesExtended,
+#                                 GNBR as groupnumber
+#                             FROM (
+#                                 SELECT {inner_column_clause}
+#                                     iss.partterminologykey as PTK,
+#                                     iss.partterminologyname as PTName,
+#                                     iss.linecode as Line_Code,
+#                                     a.groupnumber as GNBR,
+#                                     a.sku as a_sku,
+#                                     a.interchangesku as ICSKU,
+#                                     a.gbbdescription as GBBD,
+#                                     interchangesource as ICSRC,
+#                                     intergroupnumber as IGN,
+#                                     groupid AS a_gskuid,
+#                                     a.familygskuid as FGSKUID,
+#                                     iss.unitcostdeadnet AS IDN,
+#                                     demis.SupHist AS SH,
+#                                      demis.InternetQtySold AS IQSD,
+#                                       demis.BullsEye AS BUEYE,
+#                                        demis.PBEQtySold AS PBEQSD,
+#                                     iss.LineCodekey as ISS_LCK,
+#                                     iss.ProductGroupKey as ISS_PGKY,
+#                                     iss.Carline as CANE,
+#                                    demis.SupHistSalesExtended as SHSEDD,
+#                                     demis.InternetSalesExtended as D_ISEDD,
+#                                     demis.BESalesExtended as BESEDD,
+#                                      demis.PBESalesExtended as PBSEDD,
+#                                      ohqty as oh_qty,
+#                                      ohextabc as oh_ext_abc
+#                                 FROM catalogdata.gold.interchangelookupcurated a
+#                                 JOIN inline_table  {inline_table_alias} ON a.udfpn = {inline_table_alias}.{clean_column}
+#                                 JOIN dst.gold.skumaster iss ON a.interchangesku = iss.sku
+#                                 JOIN (
+#                                     SELECT
+#                                         sku,
+#                                         suphist,
+#                                         suphistsalesextended,
+#                                         purebullseyeqtysold AS PBEQtySold,
+#                                         purebullseyesalesextended AS PBESalesExtended,
+#                                         internetqtysold,
+#                                         internetsalesextended,
+#                                         (suphist - internetqtysold) AS BullsEye,
+#                                         (suphistsalesextended - internetsalesextended) AS BESalesExtended
+#                                     FROM dst.gold.vwdemands_pivot
+#                                     GROUP BY sku, suphist, suphistsalesextended,
+#                                      purebullseyeqtysold, purebullseyesalesextended,
+#                                       internetqtysold, internetsalesextended
+#                                 ) demis ON a.interchangesku = demis.sku
+#                                 join (select a.sku ,sum(onhandquantity)
+#                                 ohqty,sum(onhandextended) ohextabc from
+#                                 dst.gold.invsummary a  where sbran<>888
+#                                 group by a.sku ) inv on a.interchangesku = inv.sku
+#                                 where iss.{filter_column} in ('{filter_clause}')
+#                              ) subquery
+#                              order by subquery.a_sku asc, SH desc
+#                         """
 
             with db_connector() as connection:
                 with connection.cursor() as cursor:
                     start_time = time.time()
                     rows = cursor.execute(query).fetchall()
+                    if not rows:
+                        flash('No Records Found For The Given Data', category='info')
+                        return jsonify(
+                            {'status': 'error', 'message': 'No Records Found For The Given Data'})
                     columns = [desc[0] for desc in cursor.description]
                     end_time = time.time()
-            # data_dict = [row.asDict() for row in rows]
             s_time = time.time()
-            # df = rows.to_pandas()
-            # data_stream = io.BytesIO()
-            # df.to_excel(data_stream, index=False)
-            # data_stream.seek(0)
 
-            data_stream = io.BytesIO()
-            workbook = xlsxwriter.Workbook(data_stream)
-            worksheet = workbook.add_worksheet()
-
-            for col_num, column_name in enumerate(columns):
-                worksheet.write(0, col_num, column_name)
-
-            # Write rows
-            for row_num, row in enumerate(rows, start=1):
-                for col_num, value in enumerate(row):
-                    worksheet.write(row_num, col_num, value)
-
-            workbook.close()
-            data_stream.seek(0)
+            data_stream = write_large_dataset_to_excel(columns, rows)
 
             execution_time = end_time - start_time
             e_time = time.time()
@@ -623,7 +759,7 @@ def upload_load_sku_list_for_interchanges():
             )
 
         except Exception as e:
-            # flash(f'An error occurred: Please try again', category='error')
+            flash(f'An error occurred: Please try again', category='error')
             logger.exception(f'An error occurred: {str(e)}')
             print(f'An error occurred: {str(e)}')
             return jsonify({'status': 'error', 'message': 'An error occurred while uploading the SKU list.'})
@@ -747,5 +883,56 @@ def fetch_columns():
 
 
 
+@app.route('/fetch_loadsku_partonly_filters', methods=['POST'])
+def fetch_loadsku_partonly_filters():
+    file = request.files['file']
+    filter_by = request.form.get('filter_by')
+    filter_data = []
+    df = pd.read_excel(file)
+    part_number_column = request.form.get('partnumber_column')
+    df[f'partnumbercleansed'] = df[part_number_column].astype(str).str.replace(r'[^a-zA-Z0-9]', '', regex=True)
+    columns = df.columns.tolist()
+    values_clause = ", ".join(
+        [f"({', '.join(map(repr, row))})" for row in df.values]
+    )
+    column_clause_list = [f"`{col}`" for col in df.columns]
+    columns_clause = ", ".join(column_clause_list)
+
+    if filter_by == 'partterminologykey':
+        with db_connector() as connection:
+            with connection.cursor() as cursor:
+                query = f"""
+                WITH inline_table ({columns_clause}) AS (
+                VALUES{values_clause})
+                select distinct partterminologykey from (
+                 Select partterminologykey, partnumbercleansed 
+                from dst.gold.skumaster a 
+                join inline_table b on a.partnumbernospecialcharacters=b.partnumbercleansed 
+                group by partterminologykey, partnumbercleansed
+                )
+                """
+                results = cursor.execute(query).fetchall()
+                filter_data = [ptk[0] for ptk in results]
+
+    elif filter_by == 'linecode':
+        with db_connector() as connection:
+            with connection.cursor() as cursor:
+                query = f"""
+                WITH inline_table ({columns_clause}) AS (
+                VALUES{values_clause})
+                select distinct linecode from (
+                 Select linecode, linecodekey,partnumbercleansed 
+                from dst.gold.skumaster a 
+                join inline_table b on a.partnumbernospecialcharacters=b.partnumbercleansed 
+                group by linecode, linecodekey, partnumbercleansed
+                )
+                """
+                results = cursor.execute(query).fetchall()
+                filter_data = [lc[0] for lc in results]
+    return jsonify({'filter_by': filter_data})
+
+
+
 if __name__ == '__main__':
     app.run(debug=True)
+

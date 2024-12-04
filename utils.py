@@ -1,6 +1,7 @@
 import io
 import os
 import pandas as pd
+import xlsxwriter
 from flask import flash
 from databricks import sql
 
@@ -137,6 +138,7 @@ def validate_load_sku_list(df, required_columns, only_part_number):
         if only_part_number and 'partnumber' in missing_columns:
             flash(f"Missing columns: {', '.join(missing_columns)}", category='error')
             raise ValueError(f"Missing columns: {', '.join(missing_columns)}")
+
         if 'sku' in df_columns:
             return
         flash(f"Missing columns: {', '.join(missing_columns)}", category='error')
@@ -221,3 +223,34 @@ def create_templates_df_cpa_prefilled_sku(default_columns,columns, part_id, cpa_
     csv_stream.seek(0)
     return csv_stream
 
+
+def write_large_dataset_to_excel(columns, rows):
+    # Create an in-memory stream
+    MAX_ROWS = 1048576
+    data_stream = io.BytesIO()
+    workbook = xlsxwriter.Workbook(data_stream)
+    bold_format = workbook.add_format({'bold': True})
+
+    total_rows = len(rows)
+    worksheet_number = 0  # Counter for worksheet naming
+
+    # Write data in chunks to multiple worksheets
+    for start_row in range(0, total_rows, MAX_ROWS - 1):  # Leave room for headers
+        # Create a new worksheet
+        worksheet = workbook.add_worksheet(f'Sheet{worksheet_number + 1}')
+        worksheet_number += 1
+
+        # Write column headers
+        for col_num, column_name in enumerate(columns):
+            worksheet.write(0, col_num, column_name, bold_format)
+
+        # Write rows to the current worksheet
+        end_row = min(start_row + MAX_ROWS - 1, total_rows)  # Adjust to fit within limit
+        for row_num, row in enumerate(rows[start_row:end_row], start=1):
+            for col_num, value in enumerate(row):
+                worksheet.write(row_num, col_num, value)
+
+    # Close the workbook
+    workbook.close()
+    data_stream.seek(0)
+    return data_stream

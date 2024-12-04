@@ -1,3 +1,5 @@
+from datetime import datetime
+
 import pandas as pd
 from database_connector import db_connector
 
@@ -180,6 +182,7 @@ def cpa_uploader(file, file_path_in_volume):
 
     except Exception as e:
         print(e)
+        raise Exception(e)
 
 
 def part_term_uploader(file, file_path_in_volume):
@@ -250,7 +253,7 @@ def part_term_uploader(file, file_path_in_volume):
                             """
 
         update_query = f"""
-                        with inline_table as {columns_clause} values ({values_clause})
+                        with inline_table ( {columns_clause}) as  (values {values_clause})
                         MERGE INTO {table_catalog}.{table_schema}.{main_table_name} as TARGET
                         USING inline_table as SOURCE
                         ON TARGET.sku = SOURCE.sku
@@ -274,8 +277,121 @@ def part_term_uploader(file, file_path_in_volume):
                         """
         with db_connector() as connection:
             with connection.cursor() as cursor:
-                cursor.execute(insertion_query)
-                cursor.execute(update_query)
+                insertion_result = cursor.execute(insertion_query)
+                update_result = cursor.execute(update_query)
 
     except Exception as e:
         print(e)
+        raise Exception(e)
+
+
+def gbb_uploader(file, file_path_in_volume):
+    file_source_type = 'goodbetterbest'
+    file_header_table = 'files_header'
+    volume_catalog = 'uut'
+    volume_schema = 'dbo'
+    table_catalog = 'uut'
+    table_schema = 'silver'
+    main_table_name = 'goodbetterbest_upload'
+    archive_table_name = 'goodbetterbest_upload_archive'
+
+    csv_df = pd.read_excel(file)
+    csv_df.columns = csv_df.columns.str.lower()
+
+    try:
+        file_header_query = f"""
+                               insert into {volume_catalog}.{volume_schema}.{file_header_table} (file_path, file_source_type, upload_date)
+                               values ('{file_path_in_volume}', '{file_source_type}', cast(current_timestamp() as timestamp_ntz))"""
+
+        fileid_query = f"""
+                           select id from {volume_catalog}.{volume_schema}.{file_header_table}
+                           where file_path = '{file_path_in_volume}'
+                           """
+
+        with db_connector() as connection:
+            with connection.cursor() as cursor:
+                cursor.execute(file_header_query)
+                file_id = cursor.execute(fileid_query).fetchone().id
+
+        cols = ['lc', 'part']
+        value_columns = [c for c in csv_df.columns if c not in cols]
+
+        csv_df['quality'] = csv_df.apply(
+            lambda row: ''.join([col if row[col] == 'x' else '' for col in value_columns]),
+            axis=1
+        )
+
+        # Drop value columns after mapping
+        csv_df = csv_df.drop(value_columns, axis=1)
+
+        current_time = datetime.now()
+
+        quality_mapping = {
+            "good": 1,
+            "better": 2,
+            "best": 3,
+            "ultra_premium": 4
+        }
+
+        csv_df = csv_df.assign(
+            lc=lambda df: df['lc'].astype(str),
+            part=lambda df: df['part'].astype(str),
+            file_id=lambda df: int(file_id),  # Ensure file_id is defined in your script
+            sku=lambda df: (df['lc'] + df['part']).str.replace(r'[\s\.\-\/]', '', regex=True),
+            loaddt=lambda df: current_time,
+            updatedt=lambda df: current_time,
+            quality=lambda df: df['quality'].astype(str),
+            quality_id=lambda df: df['quality'].map(quality_mapping).astype('Int64')
+        )
+
+        values_clause = ", ".join(
+            [f"({', '.join(map(repr, row))})" for row in csv_df.values]
+        )
+        columns_clause = ", ".join(csv_df.columns)
+
+        insertion_query = f"""
+                            with inline_table ( {columns_clause}) as  (values {values_clause})
+                            INSERT INTO {table_catalog}.{table_schema}.{archive_table_name}
+                                (linecode,partnumber,quality_id,quality,file_id,sku,loaddt,updatedt,date_loaded, load_ts)
+                                SELECT
+                                    lc,part,quality_id,quality,file_id,sku,
+                                    loaddt,updatedt,
+                                    cast(date_format(cast(current_timestamp() as timestamp_ntz), "yyyyMMdd") as bigint) date_loaded,
+                                    loaddt as load_ts
+                                    --cast(current_timestamp() as timestamp_ntz) as load_ts
+                                FROM inline_table
+                            """
+
+        update_query = f"""
+                    with inline_table ( {columns_clause}) as  (values {values_clause})
+                    MERGE INTO {table_catalog}.{table_schema}.{main_table_name} as TARGET
+                    USING inline_table as SOURCE
+                    ON TARGET.sku = SOURCE.sku
+                    WHEN MATCHED THEN UPDATE SET
+                        TARGET.linecode = SOURCE.lc,
+                        TARGET.partnumber = SOURCE.part,
+                        TARGET.quality_id = SOURCE.quality_id,
+                        TARGET.quality = SOURCE.quality,
+                        TARGET.file_id = SOURCE.file_id,
+                        TARGET.sku = SOURCE.sku,
+                        --TARGET.loaddt = SOURCE.loaddt,
+                        TARGET.updatedt = SOURCE.updatedt
+                    WHEN NOT MATCHED BY TARGET THEN INSERT(linecode,partnumber,quality_id,quality,file_id,sku,loaddt,updatedt)
+                    VALUES(
+                        SOURCE.lc,
+                        SOURCE.part,
+                        SOURCE.quality_id,
+                        SOURCE.quality,
+                        SOURCE.file_id,
+                        SOURCE.sku,
+                        SOURCE.loaddt,
+                        SOURCE.updatedt)
+                    """
+        with db_connector() as connection:
+            with connection.cursor() as cursor:
+                insertion_result = cursor.execute(insertion_query)
+                update_result = cursor.execute(update_query)
+
+    except Exception as e:
+        print(e)
+        raise Exception(e)

@@ -29,7 +29,11 @@
         </div>
 
         <div class="upload-section">
-            <a href="{{ url_for('load_sku_options', upload_type='partnumber_only') }}">With PartNumber Only</a>
+            <a href="{{ url_for('load_sku_options', upload_type='partnumber_only_with_filters') }}">With PartNumber Only And Filters</a>
+        </div>
+
+        <div class="upload-section">
+            <a href="{{ url_for('load_sku_options', upload_type='partnumber_only') }}">With PartNumber Only (No Filters)</a>
         </div>
     </div>
 

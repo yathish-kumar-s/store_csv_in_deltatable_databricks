@@ -45,7 +45,7 @@
                 </select>
 
                 <select class="loadsku-dropdown" id="loadsku_partnumber" name="partnumber_column">
-                        <option value="" disabled selected>Select PartNumber column</option>
+                        <option value="" disabled selected>Select PartNumber Column</option>
                         {% for id in id_list %}
                             <option value="{{ id }}">{{ id }}</option>
                         {% endfor %}
@@ -53,7 +53,7 @@
             </div>
             <div class="buttons_container">
                 <div>
-                    <button class="upload-button" type="submit" id="uploadButton">Upload</button>
+                    <button class="upload-button" type="submit" id="uploadButton">Export To Excel</button>
                 </div>
             </div>
         </form>
@@ -63,20 +63,21 @@
             <input class="file-input" type="file" name="file" accept=".xlsx" required>
 
             <select class="loadsku-dropdown" id="loadsku_partnumber" name="partnumber_column">
-                <option value="" disabled selected>Select PartNumber column</option>
+                <option value="" disabled selected>Select PartNumber Column</option>
                 {% for id in id_list %}
                     <option value="{{ id }}">{{ id }}</option>
                 {% endfor %}
             </select>
 
             <!-- Hidden select box -->
+
             <select name="load_sku" hidden>
                 <option value="true" selected></option>
             </select>
 
             <div class="buttons_container">
                 <div>
-                    <button class="upload-button" type="submit" id="uploadButton">Upload</button>
+                    <button class="upload-button" type="submit" id="uploadButton">Export To Excel</button>
                 </div>
             </div>
         </form>
@@ -87,7 +88,7 @@
             <input class="file-input" type="file" name="file" accept=".xlsx" required>
 
              <select class="loadsku-dropdown" id="loadsku_sku" name="sku_column">
-                <option value="" disabled selected>Select SKU column</option>
+                <option value="" disabled selected>Select SKU Column</option>
                 {% for id in id_list %}
                     <option value="{{ id }}">{{ id }}</option>
                 {% endfor %}
@@ -95,7 +96,49 @@
 
             <div class="buttons_container">
                 <div>
-                    <button class="upload-button" type="submit" id="uploadButton">Upload</button>
+                    <button class="upload-button" type="submit" id="uploadButton">Export To Excel</button>
+                </div>
+            </div>
+        </form>
+
+    {% elif upload_type == 'partnumber_only_with_filters' %}
+
+        <form id="uploadForm" action="{{ url_for('upload_load_sku_list_for_interchanges') }}" method="POST" enctype="multipart/form-data">
+            <input class="file-input" type="file" name="file" accept=".xlsx" required>
+
+             <select class="loadsku-dropdown" id="loadsku_lc_filter" name="partnumber_column">
+                <option value="" disabled selected>Select PartNumber Column</option>
+                {% for id in id_list %}
+                    <option value="{{ id }}">{{ id }}</option>
+                {% endfor %}
+            </select>
+
+            <select name="load_sku" hidden>
+                <option value="true" selected></option>
+            </select>
+
+
+            <select class="filterby-dropdown" id="filterby_dropdown" name="filter_by">
+                <option value="" disabled selected>Filter by</option>
+                <option value="linecode">LineCode</option>
+                <option value="partterminologykey">PartTerm</option>
+            </select>
+
+
+            <div class="checkbox-container" style="display: none;">
+            <div class="checkbox-list" id="lsku-filter-by-data">
+{#                {% for option in options %}#}
+{#                    <div class="checkbox-item">#}
+{#                        <input type="checkbox" id="{{ option }}" name="lsku-filter-by-data" value="{{ option }}" class="checkbox">#}
+{#                        <label for="{{ option }}" class="checkbox-label">{{ option }}</label>#}
+{#                    </div>#}
+{#                {% endfor %}#}
+            </div>
+            </div>
+
+            <div class="buttons_container">
+                <div>
+                    <button class="upload-button" type="submit" id="uploadButton">Export To Excel</button>
                 </div>
             </div>
         </form>
@@ -187,6 +230,7 @@ document.querySelector('.file-input').addEventListener('change', function () {
                     populateDropdown('loadsku_linecode', data.columns, 'Select LineCode Column');
                     populateDropdown('loadsku_partnumber', data.columns, 'Select PartNumber Column');
                     populateDropdown('loadsku_sku', data.columns, 'Select SKU Column');
+                    populateDropdown('loadsku_lc_filter', data.columns, 'Select PartNumber Column');
                 } else {
                     alert('Failed to fetch columns.');
                 }
@@ -208,6 +252,100 @@ document.querySelector('.file-input').addEventListener('change', function () {
             dropdown.appendChild(option);
         });
     }
+
+    document.getElementById('filterby_dropdown').addEventListener('change', async function (e) {
+        const spinner = document.getElementById('spinner'); // Spinner element
+        const submitButton = document.getElementById('uploadButton'); // Submit button
+        spinner.style.display = "block";
+        submitButton.disabled = true;
+        const selectedValue = e.target.value
+        const fileInput = document.querySelector('.file-input');
+        const file = fileInput.files[0];
+        const competitorLineContainer = document.getElementById('lsku-filter-by-data');
+        const checkboxList = document.querySelector('.checkbox-list')
+        const checkboxContainer = document.querySelector('.checkbox-container')
+        if(selectedValue){
+            const form = document.getElementById('uploadForm')
+            const formData = new FormData(form);
+            formData.append('file', file);
+            fetch('/fetch_loadsku_partonly_filters', {
+                method: 'POST',
+                body: formData,
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.filter_by) {
+
+                    if (selectedValue=='linecode'){
+                        competitorLineContainer.innerHTML = '';
+                        data.filter_by.forEach(filter => {
+                        const checkboxItem = document.createElement('div');
+                        checkboxItem.classList.add('checkbox-item');
+                        const checkbox = document.createElement('input');
+                        checkbox.type = 'checkbox';
+                        checkbox.id = filter;
+                        checkbox.name = 'lsku-filter-by-data';
+                        checkbox.value = filter;
+                        checkbox.classList.add('checkbox');
+
+                        const label = document.createElement('label');
+                        label.htmlFor = filter;
+                        label.classList.add('checkbox-label');
+                        label.textContent = filter;
+
+                        checkboxItem.appendChild(checkbox);
+                        checkboxItem.appendChild(label);
+                        competitorLineContainer.appendChild(checkboxItem);
+                    });
+                    }
+                    else if (selectedValue=='partterminologykey'){
+                        checkboxList.classList.add('part-checkbox-list')
+                        checkboxList.classList.remove('checkbox-list')
+                        competitorLineContainer.innerHTML = '';
+                        data.filter_by.forEach(filter => {
+                        const checkboxItem = document.createElement('div');
+                        checkboxItem.classList.add('part-checkbox-item');
+                        const checkbox = document.createElement('input');
+                        checkbox.type = 'checkbox';
+                        checkbox.id = filter;
+                        checkbox.name = 'lsku-filter-by-data';
+                        checkbox.value = filter;
+                        checkbox.classList.add('checkbox');
+
+                        const label = document.createElement('label');
+                        label.htmlFor = filter;
+                        label.classList.add('part-checkbox-label');
+                        label.textContent = filter;
+
+                        checkboxItem.appendChild(checkbox);
+                        checkboxItem.appendChild(label);
+                        competitorLineContainer.appendChild(checkboxItem);
+                    });
+                    }
+
+
+                } else {
+                    alert('Failed to fetch columns.');
+                }
+            })
+            .catch(error => console.error('Error:', error))
+                .finally(()=>{
+                    checkboxContainer.style.display = 'block'
+                    spinner.style.display = "none"; // Hide the spinner
+                    submitButton.disabled = false; // Re-enable the button
+                })
+        }
+
+    });
+
+    document.getElementById('loadsku_lc_filter').addEventListener('change', async function (e) {
+        const filterDropdown = document.getElementById('filterby_dropdown')
+        filterDropdown.value= ''
+        const checkboxContainer = document.querySelector('.checkbox-container')
+        checkboxContainer.style.display = 'none'
+    });
+
+
 </script>
 
 {% endblock %}

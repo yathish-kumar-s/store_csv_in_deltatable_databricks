@@ -363,6 +363,29 @@ input[type="file"] {
     border-color: #007bff;
 }
 
+.filterby-dropdown {
+    width: 100%;
+    padding: 10px;
+    border: 1px solid #ccc;
+    border-radius: 5px;
+    font-size: 14px;
+    background-color: #fff;
+    cursor: pointer;
+    transition: border-color 0.3s, box-shadow 0.3s;
+}
+
+.filterby-dropdown:focus {
+    border-color: #007bff;
+    box-shadow: 0 0 5px rgba(0, 123, 255, 0.5);
+    outline: none;
+}
+
+.filterby-dropdown option {
+    padding: 5px;
+    font-size: 14px;
+}
+
+
 /* General container styling for login/logout */
 .header-login {
     display: flex;
@@ -404,4 +427,96 @@ input[type="file"] {
     display: flex;
     align-items: center;
     gap: 10px;
+}
+
+
+
+/* Checkbox container styles */
+.checkbox-container {
+    width: 100%;
+    border: 1px solid #ccc;
+    border-radius: 4px;
+    max-height: 200px;
+    overflow-y: auto;
+    background-color: #fff;
+    box-sizing: border-box;
+}
+
+/* List of checkboxes */
+.checkbox-list {
+    display: grid;
+    grid-template-columns: repeat(6, 1fr);
+    padding: 5px;
+    gap: 10px;
+    justify-content: space-between;
+}
+
+.part-checkbox-list {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    padding: 5px;
+    gap: 10px;
+    justify-content: space-between;
+}
+
+/* Individual checkbox item */
+.checkbox-item {
+    display: flex;
+    align-items: center;
+    width: 45%; /* Allows two checkboxes per row */
+}
+
+.part-checkbox-item {
+    display: flex;
+    align-items: center;
+}
+
+/* Checkbox styling */
+.checkbox {
+    margin-right: 5px;
+    transform: scale(1.1); /* Slightly larger for visibility */
+}
+
+/* Label for checkboxes */
+.checkbox-label {
+    font-size: 14px;
+    cursor: pointer;
+}
+
+.part-checkbox-label {
+    font-size: 12px;
+    cursor: pointer;
+}
+
+/* Export button styling */
+.export-button {
+    margin-top: 10px;
+    padding: 10px 15px;
+    width: 100%;
+    background-color: #007bff;
+    border: none;
+    border-radius: 4px;
+    color: white;
+    font-size: 14px;
+    cursor: pointer;
+    transition: background-color 0.3s ease;
+    text-align: center;
+}
+
+.export-button:hover {
+    background-color: #0056b3;
+}
+
+/* Scrollbar styling */
+.checkbox-container::-webkit-scrollbar {
+    width: 8px;
+}
+
+.checkbox-container::-webkit-scrollbar-thumb {
+    background-color: #ccc;
+    border-radius: 4px;
+}
+
+.checkbox-container::-webkit-scrollbar-thumb:hover {
+    background-color: #aaa;
 }
